@@ -3,6 +3,7 @@
 //! `guioxide [chemin]` : ouvre la fenêtre, et le jeu BIDS indiqué s'il y en a un.
 
 mod app;
+mod etapes;
 mod ouverture;
 
 use std::path::PathBuf;

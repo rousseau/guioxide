@@ -3,10 +3,11 @@
 use std::path::PathBuf;
 
 use egui::{Align, FontFamily, FontId, Key, KeyboardShortcut, Layout, Modifiers, RichText, Ui};
-use guioxide_bids::{Etape, EtatEtape};
+use guioxide_bids::{CheminsSession, Etape, EtatEtape};
 use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
 
+use crate::etapes::Visualisation;
 use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Recent, Sortie};
 
 /// Clé des jeux récents dans le stockage d'eframe.
@@ -30,9 +31,9 @@ pub struct Application {
     onglet: Onglet,
     ecran_ouverture: EcranOuverture,
     recents: Vec<Recent>,
-    /// Curseur partagé par toutes les vues d'un onglet ; utilisé à partir du jalon 3.
-    #[allow(dead_code)]
+    /// Curseur partagé par toutes les vues (monde, RAS, mm).
     curseur: PointMonde,
+    visualisation: Visualisation,
 }
 
 impl Application {
@@ -51,6 +52,7 @@ impl Application {
             ecran_ouverture: EcranOuverture::default(),
             recents,
             curseur: PointMonde::default(),
+            visualisation: Visualisation::new(&cc.egui_ctx),
         };
         if let Some(chemin) = jeu {
             app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
@@ -236,8 +238,32 @@ impl Application {
         }
     }
 
+    /// Onglets 1 à 4 : écran de l'étape pour la session choisie, ou gabarit vide.
+    fn ecran_etape(&mut self, ui: &mut Ui, etape: Etape) {
+        let session = self
+            .ouvert
+            .as_ref()
+            .zip(self.selection)
+            .and_then(|(o, i)| Some((o, o.lignes.get(i)?, i)));
+        if let Some((ouvert, ligne, i)) = session
+            && matches!(etape, Etape::Examen | Etape::Reconstruction)
+        {
+            let derivees = self.sortie.derivees(&ouvert.jeu);
+            let sujet = &ouvert.jeu.sujets[ligne.sujet];
+            let session = &sujet.sessions[ligne.session];
+            let chemins = CheminsSession::new(&derivees, sujet, session);
+            self.visualisation.suivre(&derivees, i);
+            match etape {
+                Etape::Examen => self.visualisation.examen(ui, session, &chemins, &mut self.curseur),
+                _ => self.visualisation.reconstruction(ui, &chemins, &mut self.curseur),
+            }
+            return;
+        }
+        self.gabarit_vide(ui, etape);
+    }
+
     /// Gabarit des onglets 1 à 4 : données de l'étape à gauche, visualiseur au centre, qualité à droite.
-    fn ecran_etape(&self, ui: &mut Ui, etape: Etape) {
+    fn gabarit_vide(&self, ui: &mut Ui, etape: Etape) {
         egui::Panel::left(("donnees", etape.numero()))
             .resizable(true)
             .default_size(260.0)

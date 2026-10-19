@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::ErreurBids;
+use crate::ErreurDonnees;
 
 /// Un tableau TSV lu en entier (les fichiers BIDS lus ici sont petits).
 #[derive(Clone, Debug, Default)]
@@ -12,8 +12,8 @@ pub struct Tableau {
 }
 
 impl Tableau {
-    pub fn lire(chemin: &Path) -> Result<Tableau, ErreurBids> {
-        let texte = std::fs::read_to_string(chemin).map_err(|e| ErreurBids::lecture(chemin, e))?;
+    pub fn lire(chemin: &Path) -> Result<Tableau, ErreurDonnees> {
+        let texte = std::fs::read_to_string(chemin).map_err(|e| ErreurDonnees::lecture(chemin, e))?;
         Ok(Tableau::depuis_texte(&texte))
     }
 

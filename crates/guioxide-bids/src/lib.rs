@@ -4,15 +4,16 @@
 //! (`docs/donnees.md`). Aucune dépendance graphique.
 //!
 mod avancement;
+mod chemins;
 mod jeu;
-mod tsv;
 
 use std::fmt;
 use std::path::PathBuf;
 
 pub use avancement::{etat_etape, etats_session};
+pub use chemins::CheminsSession;
+pub use guioxide_data::Tableau;
 pub use jeu::{COLONNE_AGE, Derivee, JeuBids, Pile, Session, Sujet, indexer, lister_derivees, trouver_racine};
-pub use tsv::Tableau;
 
 /// Erreur de lecture d'un jeu : toujours avec le chemin en cause.
 #[derive(Debug, thiserror::Error)]
@@ -23,6 +24,8 @@ pub enum ErreurBids {
     Lecture { chemin: PathBuf, source: std::io::Error },
     #[error("{chemin} : {message}")]
     Format { chemin: PathBuf, message: String },
+    #[error(transparent)]
+    Donnees(#[from] guioxide_data::ErreurDonnees),
 }
 
 impl ErreurBids {

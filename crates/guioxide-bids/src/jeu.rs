@@ -3,8 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::ErreurBids;
-use crate::tsv::Tableau;
+use crate::{ErreurBids, Tableau};
 
 /// Colonne de l'âge gestationnel (semaines d'aménorrhée), dans `sub-*_sessions.tsv` ou `participants.tsv`.
 pub const COLONNE_AGE: &str = "ga_weeks";

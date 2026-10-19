@@ -189,6 +189,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "approx"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "arboard"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -504,10 +513,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
 name = "byteorder-lite"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
+
+[[package]]
+name = "byteordered"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbf2cd9424f5ff404aba1959c835cbc448ee8b689b870a9981c76c0fd46280e6"
+dependencies = [
+ "byteorder",
+]
 
 [[package]]
 name = "bytes"
@@ -1447,6 +1471,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "guioxide-bids",
+ "guioxide-data",
  "guioxide-geom",
  "guioxide-view",
  "rfd",
@@ -1468,11 +1493,17 @@ name = "guioxide-data"
 version = "0.1.0"
 dependencies = [
  "guioxide-geom",
+ "medoxide-core",
+ "tempfile",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "guioxide-geom"
 version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "guioxide-view"
@@ -1480,6 +1511,8 @@ version = "0.1.0"
 dependencies = [
  "egui",
  "guioxide-bids",
+ "guioxide-data",
+ "guioxide-geom",
 ]
 
 [[package]]
@@ -1878,6 +1911,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "matrixmultiply"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f607c237553f086e7043417a51df26b2eb899d3caff94e6a67592ff992fedc7"
+dependencies = [
+ "autocfg",
+ "rawpointer",
+]
+
+[[package]]
+name = "medoxide-core"
+version = "0.1.0"
+source = "git+https://github.com/rousseau/medoxide?rev=51a6389e00b27832f2a8277684c858c01ce7e157#51a6389e00b27832f2a8277684c858c01ce7e157"
+dependencies = [
+ "ndarray",
+ "nifti",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1988,6 +2040,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ndarray"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520080814a7a6b4a6e9070823bb24b4531daac8c4627e08ba5de8c5ef2f2752d"
+dependencies = [
+ "approx",
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "portable-atomic",
+ "portable-atomic-util",
+ "rawpointer",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2018,6 +2086,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nifti"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25eca0f2d7e7bc2f5f63e6f3b6b4dc5d119854c3090d93662c5f02d6fed17424"
+dependencies = [
+ "approx",
+ "bytemuck",
+ "byteordered",
+ "either",
+ "flate2",
+ "ndarray",
+ "num-complex",
+ "num-derive",
+ "num-traits",
+ "quick-error",
+ "rgb",
+]
+
+[[package]]
 name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2030,6 +2117,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
+dependencies = [
+ "bytemuck",
+ "num-traits",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4e98dc3b890f6c23a0f9d3d491a2823d0dea0fa656302a13dd225fa924112a8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
+name = "num-integer"
+version = "0.1.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -2834,6 +2951,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rawpointer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
+
+[[package]]
 name = "read-fonts"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2902,6 +3025,15 @@ dependencies = [
  "wayland-protocols",
  "web-sys",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "rgb"
+version = "0.8.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
+dependencies = [
+ "bytemuck",
 ]
 
 [[package]]

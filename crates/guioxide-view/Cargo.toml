@@ -9,3 +9,5 @@ repository.workspace = true
 [dependencies]
 guioxide-bids.workspace = true
 egui.workspace = true
+guioxide-data.workspace = true
+guioxide-geom.workspace = true

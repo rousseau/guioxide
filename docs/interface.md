@@ -107,11 +107,17 @@ foi pour la disposition.
 | Ctrl + molette | zoom |
 | Clic | place le curseur monde (toutes les vues suivent) |
 | Clic droit glissé | fenêtrage (niveau / largeur) |
+| Glisser avec le bouton du milieu | déplacer la vue |
+| Double clic | recadrer la vue |
 | Glisser en 3D | rotation ; Maj + glisser : translation |
 | `1`…`4` | changer d'onglet |
 | `Ctrl/Cmd + O` | ouvrir un jeu BIDS |
 
 ## Apparence
+
+Coupes en **convention radiologique** (droite de la patiente à gauche de l'écran), lettres
+d'orientation (R/L, A/P, S/I) sur les bords de chaque vue.
+
 
 Thème sombre (lecture d'images) : fond `#111316`, panneaux `#181B20`, texte `#E6E8EB`, texte
 secondaire `#9AA1AB`, accent rouille `#E07B39`, état « terminé » bleu `#7FB3E6`. Les états ne

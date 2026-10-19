@@ -8,3 +8,8 @@ repository.workspace = true
 
 [dependencies]
 guioxide-geom.workspace = true
+medoxide-core.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

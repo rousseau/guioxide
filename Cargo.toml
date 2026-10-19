@@ -15,6 +15,9 @@ guioxide-data = { path = "crates/guioxide-data" }
 guioxide-bids = { path = "crates/guioxide-bids" }
 guioxide-view = { path = "crates/guioxide-view" }
 
+# Crates « cœur » sans Burn, épinglés par rev (docs/architecture.md).
+medoxide-core = { git = "https://github.com/rousseau/medoxide", rev = "51a6389e00b27832f2a8277684c858c01ce7e157" }
+
 eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
 egui_extras = "0.37"

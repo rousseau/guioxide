@@ -3,6 +3,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use crate::CheminsSession;
 use crate::jeu::{Session, Sujet};
 use crate::{Etape, EtatEtape};
 
@@ -12,40 +13,30 @@ pub fn etats_session(derivees: &Path, sujet: &Sujet, session: &Session) -> [Etat
 }
 
 pub fn etat_etape(etape: Etape, derivees: &Path, sujet: &Sujet, session: &Session) -> EtatEtape {
-    let anat = |pipeline: &str| derivees.join(pipeline).join(session.dossier(sujet)).join("anat");
-    let prefixe = session.prefixe(sujet);
+    let chemins = CheminsSession::new(derivees, sujet, session);
     match etape {
         Etape::Examen => {
             let masques: Vec<PathBuf> = session
                 .piles
                 .iter()
                 .filter(|p| p.contraste == "T2w")
-                .map(|p| anat("medx-fetalbet").join(format!("{}_desc-brain_mask.nii.gz", p.nom)))
+                .map(|p| chemins.masque(p))
                 .collect();
             selon_fichiers(&masques)
         }
-        Etape::Reconstruction => selon_fichiers(&[
-            anat("medx-svr").join(format!("{prefixe}_desc-svr_T2w.nii.gz")),
-            anat("medx-bounti").join(format!("{prefixe}_desc-bounti_dseg.nii.gz")),
-        ]),
+        Etape::Reconstruction => selon_fichiers(&[chemins.svr(), chemins.segmentation()]),
         Etape::Surfaces => {
-            let dossier = anat("surfx-surfaces");
-            let surfaces = |hemi: &str| -> Vec<PathBuf> {
-                ["white", "pial"]
-                    .iter()
-                    .map(|s| dossier.join(format!("{prefixe}{hemi}_{s}.surf.gii")))
-                    .collect()
-            };
-            let par_hemisphere = [surfaces("_hemi-L"), surfaces("_hemi-R")].concat();
+            let surfaces = |hemi: Option<&str>| vec![chemins.surface("white", hemi), chemins.surface("pial", hemi)];
+            let par_hemisphere = [surfaces(Some("L")), surfaces(Some("R"))].concat();
             // Deux hémisphères séparés, ou une surface qui couvre les deux (sans `hemi-`) : le plus avancé l'emporte.
-            match (selon_fichiers(&par_hemisphere), selon_fichiers(&surfaces(""))) {
+            match (selon_fichiers(&par_hemisphere), selon_fichiers(&surfaces(None))) {
                 (e @ EtatEtape::Erreur(_), _) | (_, e @ EtatEtape::Erreur(_)) => e,
                 (EtatEtape::Terminee, _) | (_, EtatEtape::Terminee) => EtatEtape::Terminee,
                 (EtatEtape::EnCours, _) | (_, EtatEtape::EnCours) => EtatEtape::EnCours,
                 _ => EtatEtape::NonFaite,
             }
         }
-        Etape::Simulation => etat_simulation(&anat("gyroxide")),
+        Etape::Simulation => etat_simulation(&chemins.simulations()),
     }
 }
 

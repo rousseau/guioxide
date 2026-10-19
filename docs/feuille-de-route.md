@@ -41,14 +41,21 @@ jalon 7) ; panneaux en tiroirs sous 1100 px.
 
 ## Jalon 3 — Visualiseur de coupes
 
-- [ ] `guioxide-geom` : affine (règle sform/qform), voxel ↔ monde, plans, échantillonnage.
-- [ ] `guioxide-data` : chargement NIfTI via `medoxide-core`, en arrière-plan, avec cache.
-- [ ] `guioxide-view` : vue de coupe (fenêtrage, zoom, déplacement), vue triplanaire avec
+- [x] `guioxide-geom` : affine (règle sform/qform), voxel ↔ monde, plans, échantillonnage.
+- [x] `guioxide-data` : chargement NIfTI via `medoxide-core`, en arrière-plan, avec cache.
+- [x] `guioxide-view` : vue de coupe (fenêtrage, zoom, déplacement), vue triplanaire avec
       curseur monde lié, superposition d'étiquettes (couleurs, opacité) et de contours.
 - [ ] Tests de géométrie : un point monde tombe sur le même voxel que dans le SVR, sur des
       volumes obliques.
 
 *Fin* : un volume de 0,5 mm iso se parcourt sans saccade ; masque et segmentation alignés.
+
+*État* : géométrie testée contre nibabel sur l'affine d'une vraie pile oblique et sur une fonction
+linéaire du monde (exacte en trilinéaire) ; lecture qform seul testée. La comparaison au SVR attend
+que celui-ci lise ses piles par `affine_nifti` ([medoxide#1](https://github.com/rousseau/medoxide/issues/1)).
+Rendu hors écran (`cargo run --release -p guioxide-view --example coupe`) sur une session de
+`fetal-crl2025` : segmentation (0,5 mm) et masque (0,8 mm, qform seul) alignés ; composition d'une vue
+en 4 ms. Fluidité dans la fenêtre : à confirmer à la main.
 
 ## Jalon 4 — Onglets Examen et Reconstruction
 

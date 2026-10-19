@@ -1,7 +1,8 @@
 //! `guioxide-view` : apparence et widgets de visualisation de guioxide.
 //!
-//! Jalon 1 : thème, polices et pastilles d'état. Les vues de coupe, triplanaire et 3D arrivent aux jalons 3 et 5.
+//! Thème, polices, pastilles d'état, vues de coupe et triplanaire. La vue 3D arrive au jalon 5.
 
+pub mod coupe;
 pub mod polices;
 pub mod theme;
 

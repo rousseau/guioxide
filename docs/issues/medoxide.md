@@ -9,6 +9,10 @@ Contexte commun à coller en tête de chaque issue :
 
 ## 1. Affine : règle unique `sform`, sinon `qform`, dans `medoxide-core`
 
+> **Ouverte** : [medoxide#1](https://github.com/rousseau/medoxide/issues/1), périmètre réduit. La
+> règle existe désormais dans `medoxide-core` (`affine_nifti`, utilisée par guioxide et par
+> medoxide-bounti) ; reste à l'utiliser dans medoxide-svr et medoxide-fetalbet.
+
 `medoxide-core::volume_info` ne lit que le `sform` et renvoie `affine: None` si
 `sform_code == 0`. Certaines piles fœtales n'ont qu'un `qform`.
 
