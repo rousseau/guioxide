@@ -24,15 +24,20 @@ vient en dernier.
 
 ## Jalon 2 — Ouverture d'un jeu BIDS
 
-- [ ] `guioxide-bids` : racine (avec remontée depuis `sub-*`/`ses-*`), sujets, sessions,
+- [x] `guioxide-bids` : racine (avec remontée depuis `sub-*`/`ses-*`), sujets, sessions,
       piles par contraste, `participants.tsv`, dérivées et versions.
-- [ ] État d'avancement par étape selon la table du contrat ; erreurs de lecture remontées.
-- [ ] Écran d'ouverture : dépôt de dossier, sélecteur natif, récents, tableau
+- [x] État d'avancement par étape selon la table du contrat ; erreurs de lecture remontées.
+- [x] Écran d'ouverture : dépôt de dossier, sélecteur natif, récents, tableau
       sujets × sessions, choix du répertoire de sortie.
-- [ ] Ouverture directe en argument : `guioxide /chemin/jeu`.
+- [x] Ouverture directe en argument : `guioxide /chemin/jeu`.
 
 *Fin* : sur le jeu de test, le tableau affiche les bons états ; tests unitaires de
 l'indexation sur des arborescences factices (dont cas invalides).
+
+*État* : fait, sauf la vérification sur le jeu de test (pas encore constitué, jalon 0) ; essayé sur la
+structure de `fetal-crl2025` (159 sujets, 193 sessions). Reportés : options « partir des dérivées de
+l'étude » et « garder une arborescence BIDS » de la sortie libre (utiles au lancement des outils,
+jalon 7) ; panneaux en tiroirs sous 1100 px.
 
 ## Jalon 3 — Visualiseur de coupes
 

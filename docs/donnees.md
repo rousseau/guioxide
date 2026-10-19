@@ -10,8 +10,10 @@ Statut de chaque ligne : **existant** (déjà écrit ainsi par l'outil), **à ad
 ## Règles communes
 
 - **Jeu de données** : BIDS. Les données brutes sous `sub-*/ses-*/anat/` (et `dwi/` plus tard).
+- **Racine de l'étude** : la racine BIDS elle-même, ou son parent quand la racine BIDS s'appelle
+  `sourcedata/` (convention des buckets Garage : `sourcedata/` et `derivatives/` côte à côte).
 - **Dérivées** : `<sortie>/derivatives/<pipeline>/sub-*/ses-*/<modalité>/`, où `<sortie>` est
-  la racine du jeu (mode « étude ») ou un répertoire libre (mode « test »).
+  la racine de l'étude (mode « étude ») ou un répertoire libre (mode « test »).
   `<pipeline>` = `<binaire>-<méthode>` : `medx-fetalbet`, `medx-svr`, `medx-bounti`,
   `surfx-surfaces`, `gyroxide`.
 - **Chaque dossier `<pipeline>/` contient un `dataset_description.json`** avec
@@ -35,12 +37,13 @@ Statut de chaque ligne : **existant** (déjà écrit ainsi par l'outil), **à ad
 |---|---|---|
 | `dataset_description.json` | reconnaissance de la racine, nom du jeu, version BIDS | BIDS |
 | `participants.tsv` | liste des sujets | BIDS |
-| `sub-*/sessions.tsv` ou `participants.tsv` : colonne d'âge gestationnel | affichage AG (SA) | **proposé** : nom de colonne à fixer, ex. `gestational_age_weeks` |
+| `sub-*/sub-*_sessions.tsv` (colonne `session_id`), ou `participants.tsv` pour un jeu sans sessions : colonne `ga_weeks` | affichage AG (SA) | **existant** (`fetal-crl2025`) ; même nom que dans `sequence.tsv` de gyroxide |
 | `sub-*/ses-*/anat/*_T2w.nii.gz` | piles acquises (une par fichier, `acq-`/`run-` pour les distinguer) | BIDS |
 | `derivatives/*/dataset_description.json` | dérivées présentes, versions | proposé |
 
-Si l'utilisateur dépose un dossier `sub-*` ou `ses-*`, guioxide remonte jusqu'au premier
-parent contenant `dataset_description.json`.
+Si l'utilisateur dépose un dossier `sub-*`, `ses-*` ou plus bas, guioxide remonte jusqu'au premier
+parent contenant un `dataset_description.json` de jeu brut (ceux des dérivées, `DatasetType:
+derivative`, sont ignorés). S'il dépose la racine d'un bucket, la racine BIDS est `sourcedata/`.
 
 ## 1 · Examen — medoxide
 

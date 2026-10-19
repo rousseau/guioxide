@@ -13,3 +13,6 @@ guioxide-geom.workspace = true
 guioxide-view.workspace = true
 eframe.workspace = true
 egui.workspace = true
+egui_extras.workspace = true
+rfd.workspace = true
+serde.workspace = true

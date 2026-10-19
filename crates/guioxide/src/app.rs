@@ -2,10 +2,15 @@
 
 use std::path::PathBuf;
 
-use egui::{Align, FontFamily, FontId, Key, Layout, RichText, Ui};
+use egui::{Align, FontFamily, FontId, Key, KeyboardShortcut, Layout, Modifiers, RichText, Ui};
 use guioxide_bids::{Etape, EtatEtape};
 use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
+
+use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Recent, Sortie};
+
+/// Clé des jeux récents dans le stockage d'eframe.
+const CLE_RECENTS: &str = "recents";
 
 /// Un onglet : l'écran d'ouverture ou une étape de la chaîne.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -14,50 +19,121 @@ pub enum Onglet {
     Etape(Etape),
 }
 
-/// Répertoire où sont lues les dérivées.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Sortie {
-    /// `racine/derivatives/<pipeline>/` du jeu ouvert.
-    Etude,
-    /// Répertoire libre, pour les essais ; choisi sur l'écran d'ouverture au jalon 2.
-    #[allow(dead_code)]
-    Libre(PathBuf),
-}
-
 pub struct Application {
-    /// Chemin demandé à l'ouverture ; l'indexation BIDS arrive au jalon 2.
-    jeu: Option<PathBuf>,
+    ouvert: Option<JeuOuvert>,
+    chargement: Option<Chargement>,
+    /// Dernière erreur d'ouverture, affichée jusqu'à la prochaine tentative.
+    erreur: Option<String>,
     sortie: Sortie,
+    /// Indice de la session choisie dans `ouvert.lignes`.
+    selection: Option<usize>,
     onglet: Onglet,
+    ecran_ouverture: EcranOuverture,
+    recents: Vec<Recent>,
     /// Curseur partagé par toutes les vues d'un onglet ; utilisé à partir du jalon 3.
     #[allow(dead_code)]
     curseur: PointMonde,
-    etats: [EtatEtape; 4],
 }
 
 impl Application {
-    pub fn new(jeu: Option<PathBuf>) -> Self {
-        Self {
-            jeu,
+    pub fn new(cc: &eframe::CreationContext<'_>, jeu: Option<PathBuf>) -> Self {
+        let recents = cc
+            .storage
+            .and_then(|s| eframe::get_value(s, CLE_RECENTS))
+            .unwrap_or_default();
+        let mut app = Self {
+            ouvert: None,
+            chargement: None,
+            erreur: None,
             sortie: Sortie::Etude,
+            selection: None,
             onglet: Onglet::Ouverture,
+            ecran_ouverture: EcranOuverture::default(),
+            recents,
             curseur: PointMonde::default(),
-            etats: Default::default(),
+        };
+        if let Some(chemin) = jeu {
+            app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
+        }
+        app
+    }
+
+    fn ouvrir(&mut self, ctx: &egui::Context, chemin: PathBuf, sortie: Sortie) {
+        self.erreur = None;
+        self.chargement = Some(Chargement::ouvrir(ctx, chemin, sortie.clone()));
+        self.sortie = sortie;
+    }
+
+    fn choisir_dossier(&mut self, ctx: &egui::Context) {
+        if let Some(dossier) = rfd::FileDialog::new().set_title("Ouvrir un jeu BIDS").pick_folder() {
+            self.ouvrir(ctx, dossier, Sortie::Etude);
         }
     }
 
-    fn etat(&self, etape: Etape) -> &EtatEtape {
-        &self.etats[usize::from(etape.numero() - 1)]
+    /// Reçoit le résultat d'un chargement terminé.
+    fn suivre_chargement(&mut self) {
+        let Some(resultat) = self.chargement.as_ref().and_then(Chargement::resultat) else {
+            return;
+        };
+        self.chargement = None;
+        match resultat {
+            Ok(ouvert) => {
+                let meme_jeu = self.ouvert.as_ref().is_some_and(|o| o.jeu.racine == ouvert.jeu.racine);
+                if !meme_jeu {
+                    self.selection = (ouvert.lignes.len() == 1).then_some(0);
+                    self.onglet = Onglet::Ouverture;
+                }
+                let chemin = ouverture::chemin_recent(&ouvert.jeu).to_path_buf();
+                ouverture::memoriser(
+                    &mut self.recents,
+                    Recent {
+                        chemin,
+                        sortie: self.sortie.clone(),
+                    },
+                );
+                self.ouvert = Some(ouvert);
+            }
+            Err(message) => self.erreur = Some(message),
+        }
     }
 
-    /// Raccourcis : `1`…`4` changent d'onglet. `Ctrl/Cmd + O` (ouvrir un jeu) arrive au jalon 2.
-    fn raccourcis(&mut self, ui: &Ui) {
-        if ui.ctx().memory(|m| m.focused().is_some()) {
+    fn executer(&mut self, ctx: &egui::Context, action: Action) {
+        match action {
+            Action::Ouvrir(chemin, sortie) => self.ouvrir(ctx, chemin, sortie),
+            Action::ChoisirDossier => self.choisir_dossier(ctx),
+            Action::ChangerSortie(sortie) => {
+                if let Some(ouvert) = &self.ouvert {
+                    self.chargement = Some(Chargement::recalculer(ctx, ouvert.jeu.clone(), sortie.clone()));
+                }
+                self.sortie = sortie;
+            }
+            Action::OuvrirSession => {
+                if self.selection.is_some() {
+                    self.onglet = Onglet::Etape(Etape::Examen);
+                }
+            }
+        }
+    }
+
+    fn etat(&self, etape: Etape) -> Option<&EtatEtape> {
+        let ligne = self.ouvert.as_ref()?.lignes.get(self.selection?)?;
+        Some(&ligne.etats[usize::from(etape.numero() - 1)])
+    }
+
+    /// `1`…`4` changent d'onglet ; `Ctrl/Cmd + O` ouvre un jeu ; un dossier déposé est ouvert.
+    fn raccourcis(&mut self, ctx: &egui::Context) {
+        if let Some(chemin) = ouverture::depot(ctx) {
+            self.ouvrir(ctx, chemin, Sortie::Etude);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O))) {
+            self.choisir_dossier(ctx);
+        }
+        if ctx.memory(|m| m.focused().is_some()) {
             return; // un champ de saisie a le focus : les chiffres lui reviennent
         }
         let touches = [(Key::Num1, 1), (Key::Num2, 2), (Key::Num3, 3), (Key::Num4, 4)];
         for (touche, n) in touches {
-            if ui.input(|i| i.key_pressed(touche))
+            if ctx.input(|i| i.key_pressed(touche))
                 && let Some(etape) = Etape::depuis_numero(n)
             {
                 self.onglet = Onglet::Etape(etape);
@@ -69,13 +145,31 @@ impl Application {
         ui.horizontal(|ui| {
             ui.label(RichText::new("guioxide").font(FontId::new(16.0, FontFamily::Name(polices::SEMI_GRAS.into()))));
             ui.separator();
-            match &self.jeu {
-                Some(chemin) => ui.label(chemin.display().to_string()),
-                None => ui.label(RichText::new("aucun jeu ouvert").color(theme::TEXTE_SECONDAIRE)),
-            };
+            match &self.ouvert {
+                Some(ouvert) => {
+                    ui.label(&ouvert.jeu.nom);
+                    if let Some(ligne) = self.selection.and_then(|i| ouvert.lignes.get(i)) {
+                        ui.label(RichText::new("/").color(theme::TEXTE_SECONDAIRE));
+                        ui.strong(ouvert.libelle(ligne));
+                        if let Some(age) = ouvert.age(ligne) {
+                            ui.label(RichText::new(ouverture::format_age(age)).color(theme::TERMINE));
+                        }
+                        let session = &ouvert.jeu.sujets[ligne.sujet].sessions[ligne.session];
+                        let contrastes = session.contrastes().into_iter().collect::<Vec<_>>().join(" ");
+                        ui.label(RichText::new(format!("Contrastes : {contrastes}")).color(theme::TEXTE_SECONDAIRE));
+                    }
+                }
+                None => {
+                    ui.label(RichText::new("aucun jeu ouvert").color(theme::TEXTE_SECONDAIRE));
+                }
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.add_enabled(false, egui::Button::new("Ouvrir un jeu BIDS"))
-                    .on_disabled_hover_text("jalon 2");
+                let raccourci = ui
+                    .ctx()
+                    .format_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O));
+                if ui.button("Ouvrir un jeu BIDS").on_hover_text(raccourci).clicked() {
+                    self.choisir_dossier(ui.ctx());
+                }
                 let pastille = match self.sortie {
                     Sortie::Etude => "Sortie : étude",
                     Sortie::Libre(_) => "Sortie : test",
@@ -96,7 +190,7 @@ impl Application {
             ui.selectable_value(&mut self.onglet, Onglet::Ouverture, "Ouverture");
             for etape in Etape::TOUTES {
                 ui.separator();
-                pastille_etat(ui, self.etat(etape));
+                pastille_etat(ui, self.etat(etape).unwrap_or(&EtatEtape::NonFaite));
                 ui.selectable_value(&mut self.onglet, Onglet::Etape(etape), etape.to_string())
                     .on_hover_text(format!("{} · touche {}", etape.outil(), etape.numero()));
             }
@@ -111,28 +205,35 @@ impl Application {
             };
             ui.label(RichText::new(outil).monospace().color(theme::TEXTE_SECONDAIRE));
             ui.separator();
-            ui.label(RichText::new("aucune dérivée affichée").color(theme::TEXTE_SECONDAIRE));
+            let derivees = match &self.ouvert {
+                Some(o) => self.sortie.derivees(&o.jeu).display().to_string(),
+                None => "aucune dérivée affichée".to_owned(),
+            };
+            ui.label(RichText::new(derivees).monospace().color(theme::TEXTE_SECONDAIRE));
+            if let Some(chargement) = &self.chargement {
+                ui.separator();
+                ui.spinner();
+                ui.label(RichText::new(&chargement.description).color(theme::TEXTE_SECONDAIRE));
+            }
         });
     }
 
-    fn ecran_ouverture(&self, ui: &mut Ui) {
-        ui.vertical_centered(|ui| {
-            ui.add_space(ui.available_height() * 0.3);
-            egui::Frame::new()
-                .stroke((1.0, theme::BORDURE))
-                .corner_radius(8.0)
-                .inner_margin(32.0)
-                .show(ui, |ui| {
-                    ui.set_width(480.0);
-                    ui.vertical_centered(|ui| {
-                        ui.heading("Ouvrir un jeu BIDS");
-                        ui.label(
-                            RichText::new("Glisser un dossier ici, ou cliquer pour le choisir (jalon 2)")
-                                .color(theme::TEXTE_SECONDAIRE),
-                        );
-                    });
-                });
-        });
+    fn ecran_ouverture(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) {
+        if let Some(erreur) = &self.erreur {
+            egui::Panel::top("erreur_ouverture").show(ui, |ui| {
+                ui.label(RichText::new(format!("⚠ {erreur}")).color(theme::ERREUR));
+            });
+        }
+        match &self.ouvert {
+            Some(ouvert) => self
+                .ecran_ouverture
+                .jeu(ui, ouvert, &self.sortie, &mut self.selection, actions),
+            None => {
+                let survole = ouverture::depot_survole(ui.ctx());
+                egui::CentralPanel::default()
+                    .show(ui, |ui| self.ecran_ouverture.vide(ui, &self.recents, survole, actions));
+            }
+        }
     }
 
     /// Gabarit des onglets 1 à 4 : données de l'étape à gauche, visualiseur au centre, qualité à droite.
@@ -149,10 +250,17 @@ impl Application {
             .default_size(280.0)
             .show(ui, |ui| {
                 ui.strong("Qualité et paramètres");
+                if let Some(EtatEtape::Erreur(message)) = self.etat(etape) {
+                    ui.label(RichText::new(message).color(theme::ERREUR));
+                }
             });
         egui::CentralPanel::default().show(ui, |ui| {
             ui.centered_and_justified(|ui| {
-                ui.label(RichText::new(format!("Visualiseur · {etape}")).color(theme::TEXTE_SECONDAIRE));
+                let texte = match self.selection {
+                    Some(_) => format!("Visualiseur · {etape}"),
+                    None => "Choisir une session sur l'écran d'ouverture".to_owned(),
+                };
+                ui.label(RichText::new(texte).color(theme::TEXTE_SECONDAIRE));
             });
         });
     }
@@ -160,7 +268,9 @@ impl Application {
 
 impl eframe::App for Application {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        self.raccourcis(ui);
+        let ctx = ui.ctx().clone();
+        self.suivre_chargement();
+        self.raccourcis(&ctx);
         egui::Panel::top("en_tete").show(ui, |ui| {
             ui.add_space(4.0);
             self.en_tete(ui);
@@ -168,11 +278,17 @@ impl eframe::App for Application {
         });
         egui::Panel::top("onglets").show(ui, |ui| self.barre_onglets(ui));
         egui::Panel::bottom("pied").show(ui, |ui| self.barre_pied(ui));
+        let mut actions = Vec::new();
         match self.onglet {
-            Onglet::Ouverture => {
-                egui::CentralPanel::default().show(ui, |ui| self.ecran_ouverture(ui));
-            }
+            Onglet::Ouverture => self.ecran_ouverture(ui, &mut actions),
             Onglet::Etape(etape) => self.ecran_etape(ui, etape),
         }
+        for action in actions {
+            self.executer(&ctx, action);
+        }
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, CLE_RECENTS, &self.recents);
     }
 }

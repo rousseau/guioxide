@@ -15,8 +15,14 @@ guioxide-data = { path = "crates/guioxide-data" }
 guioxide-bids = { path = "crates/guioxide-bids" }
 guioxide-view = { path = "crates/guioxide-view" }
 
-eframe = "0.37"
+eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
+egui_extras = "0.37"
+rfd = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "2"
 
 [profile.dev.package."*"]
 # Les dépendances (wgpu, egui) optimisées même en dev : l'interface reste fluide en debug.

@@ -3,6 +3,7 @@
 //! `guioxide [chemin]` : ouvre la fenêtre, et le jeu BIDS indiqué s'il y en a un.
 
 mod app;
+mod ouverture;
 
 use std::path::PathBuf;
 
@@ -22,7 +23,7 @@ fn main() -> eframe::Result {
         Box::new(|cc| {
             guioxide_view::theme::appliquer(&cc.egui_ctx);
             guioxide_view::polices::installer(&cc.egui_ctx);
-            Ok(Box::new(app::Application::new(jeu)))
+            Ok(Box::new(app::Application::new(cc, jeu)))
         }),
     )
 }

@@ -3,9 +3,36 @@
 //! L'état d'une étape est déduit de la présence et de la validité des fichiers du contrat de données
 //! (`docs/donnees.md`). Aucune dépendance graphique.
 //!
-//! Jalon 1 : les étapes et leurs états. L'indexation arrive au jalon 2.
+mod avancement;
+mod jeu;
+mod tsv;
 
 use std::fmt;
+use std::path::PathBuf;
+
+pub use avancement::{etat_etape, etats_session};
+pub use jeu::{COLONNE_AGE, Derivee, JeuBids, Pile, Session, Sujet, indexer, lister_derivees, trouver_racine};
+pub use tsv::Tableau;
+
+/// Erreur de lecture d'un jeu : toujours avec le chemin en cause.
+#[derive(Debug, thiserror::Error)]
+pub enum ErreurBids {
+    #[error("aucun jeu BIDS trouvé à partir de {0} (pas de dataset_description.json dans ce dossier ni au-dessus)")]
+    RacineIntrouvable(PathBuf),
+    #[error("{chemin} : {source}")]
+    Lecture { chemin: PathBuf, source: std::io::Error },
+    #[error("{chemin} : {message}")]
+    Format { chemin: PathBuf, message: String },
+}
+
+impl ErreurBids {
+    pub(crate) fn lecture(chemin: &std::path::Path, source: std::io::Error) -> Self {
+        ErreurBids::Lecture {
+            chemin: chemin.to_path_buf(),
+            source,
+        }
+    }
+}
 
 /// Une étape de la chaîne, de l'examen acquis à la simulation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
