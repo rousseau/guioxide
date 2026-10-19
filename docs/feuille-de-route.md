@@ -94,12 +94,19 @@ Reporté : capture d'écran de la vue 3D ; `desc-surfqc.tsv` est lu s'il existe,
 
 ## Jalon 6 — Onglet Simulation
 
-- [ ] Lecture d'un run : `config.toml`, `sequence.tsv`, `status.json`, séquence GIfTI.
-- [ ] Frise temporelle, lecture, trois vues synchronisées, courbe d'indice de gyrification.
-- [ ] Relecture périodique d'un run en cours.
+- [x] Lecture d'un run : `config.toml`, `sequence.tsv`, `status.json`, séquence GIfTI.
+- [x] Frise temporelle, lecture, trois vues synchronisées, courbe d'indice de gyrification.
+- [x] Relecture périodique d'un run en cours.
 
 *Fin* : un run de gyroxide se rejoue ; les surfaces simulées sont dans le repère de l'image.
 Dépend des issues gyroxide.
+
+*État* : fait sur un run réel (`out/scan_hmu/h2_c2` de la station, 16 surfaces) converti au format du
+contrat. Le run se rejoue ; ses surfaces restent en coordonnées normalisées tant que
+[gyroxide#2](https://github.com/rousseau/gyroxide/issues/2) n'est pas traitée (guioxide l'indique).
+Issues [gyroxide#2 à #4](https://github.com/rousseau/gyroxide/issues) ouvertes. Reportés : distance
+simulé ↔ observé, points d'indice de gyrification observés, fin du journal (pas de journal dans le
+contrat).
 
 ## Jalon 7 — Lancer les outils
 

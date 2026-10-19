@@ -9,6 +9,7 @@
 mod chargeur;
 mod etiquettes;
 mod gifti;
+mod simulation;
 mod svr;
 mod tsv;
 
@@ -20,6 +21,7 @@ use guioxide_geom::{Affine, Volume};
 pub use chargeur::{Chargeur, Etat};
 pub use etiquettes::{Etiquette, TableEtiquettes, couleur_par_defaut};
 pub use gifti::{Maillage, lire_champ, lire_surface};
+pub use simulation::{EtatRun, PasSequence, lire_etat_run, lire_sequence, lister_runs};
 pub use svr::{MouvementCoupe, PointMouvement, QualiteCoupe, lire_mouvement, lire_qualite, mouvement_par_coupe};
 pub use tsv::Tableau;
 

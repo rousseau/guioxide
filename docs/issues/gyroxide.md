@@ -9,6 +9,8 @@ Contexte commun à coller en tête de chaque issue :
 
 ## 1. Surfaces simulées en GIfTI, dans le repère de l'image
 
+> **Ouverte** : [gyroxide#2](https://github.com/rousseau/gyroxide/issues/2).
+
 Aujourd'hui `--vtk-every` écrit des surfaces en VTK legacy ASCII, dans le repère **normalisé**
 de la simulation (`gyroxide-mesh::normalize`).
 
@@ -24,6 +26,8 @@ observées. Hors repère monde, rien ne s'aligne.
 ---
 
 ## 2. Un run = un dossier, avec index et état
+
+> **Ouverte** : [gyroxide#3](https://github.com/rousseau/gyroxide/issues/3).
 
 **Proposition** : `gyroxide run --bids <racine> --participant X --session Y --label <run>`
 écrit dans `<sortie>/derivatives/gyroxide/sub-X/ses-Y/anat/run-<label>/` :
@@ -42,6 +46,8 @@ guioxide relit `status.json` et `sequence.tsv` pour suivre un run en cours.
 ---
 
 ## 3. Correspondance temps de simulation ↔ âge gestationnel
+
+> **Ouverte** : [gyroxide#4](https://github.com/rousseau/gyroxide/issues/4).
 
 Pour afficher une frise en semaines d'aménorrhée, il faut une loi `t → AG`. À définir dans le
 modèle (paramètre du préréglage ?) ; sinon guioxide affiche le temps du modèle seul.

@@ -16,6 +16,7 @@ use guioxide_view::theme;
 
 use crate::examen::Examen;
 use crate::reconstruction::Reconstruction;
+use crate::simulation::Simulation;
 use crate::surfaces::Surfaces;
 
 /// Taille du cache des volumes (octets de voxels).
@@ -166,6 +167,7 @@ pub struct Visualisation {
     examen: Examen,
     reconstruction: Reconstruction,
     surfaces: Surfaces,
+    simulation: Simulation,
 }
 
 impl Visualisation {
@@ -186,6 +188,7 @@ impl Visualisation {
             examen: Examen::default(),
             reconstruction: Reconstruction::default(),
             surfaces: Surfaces::default(),
+            simulation: Simulation::default(),
         }
     }
 
@@ -199,6 +202,7 @@ impl Visualisation {
             self.examen = Examen::default();
             self.reconstruction = Reconstruction::default();
             self.surfaces = Surfaces::default();
+            self.simulation = Simulation::default();
         }
     }
 
@@ -230,6 +234,29 @@ impl Visualisation {
         curseur: &mut PointMonde,
     ) {
         self.surfaces.ui(ui, &mut self.base, chemins, rendu, curseur);
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn simulation(
+        &mut self,
+        ui: &mut Ui,
+        jeu: &guioxide_bids::JeuBids,
+        (sujet, session): (usize, usize),
+        derivees: &Path,
+        chemins: &CheminsSession,
+        rendu: Option<&egui_wgpu::RenderState>,
+        curseur: &mut PointMonde,
+    ) {
+        self.simulation.ui(
+            ui,
+            &mut self.base,
+            jeu,
+            sujet,
+            session,
+            derivees,
+            chemins,
+            rendu,
+            curseur,
+        );
     }
 }
 

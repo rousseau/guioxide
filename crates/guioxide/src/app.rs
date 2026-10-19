@@ -248,9 +248,7 @@ impl Application {
             .as_ref()
             .zip(self.selection)
             .and_then(|(o, i)| Some((o, o.lignes.get(i)?, i)));
-        if let Some((ouvert, ligne, i)) = session
-            && etape != Etape::Simulation
-        {
+        if let Some((ouvert, ligne, i)) = session {
             let derivees = self.sortie.derivees(&ouvert.jeu);
             let sujet = &ouvert.jeu.sujets[ligne.sujet];
             let session = &sujet.sessions[ligne.session];
@@ -261,9 +259,18 @@ impl Application {
                 Etape::Reconstruction => self
                     .visualisation
                     .reconstruction(ui, session, &chemins, &mut self.curseur),
-                _ => self
+                Etape::Surfaces => self
                     .visualisation
                     .surfaces(ui, &chemins, self.rendu.as_ref(), &mut self.curseur),
+                Etape::Simulation => self.visualisation.simulation(
+                    ui,
+                    &ouvert.jeu,
+                    (ligne.sujet, ligne.session),
+                    &derivees,
+                    &chemins,
+                    self.rendu.as_ref(),
+                    &mut self.curseur,
+                ),
             }
             return;
         }
