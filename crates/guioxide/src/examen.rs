@@ -175,7 +175,7 @@ impl Examen {
                     egui::Panel::bottom("examen_bandeau").show(ui, |ui| self.bandeau(ui, &volume, &qualite, curseur));
                     if let Some(vue) = &mut self.vue {
                         let rect = ui.available_rect_before_wrap();
-                        vue.ui(ui, rect, &mut couches, curseur);
+                        vue.ui(ui, rect, &mut couches, &[], curseur);
                     }
                 }
                 Mode::Mosaique => self.mosaique(ui, &volume, &qualite, curseur),

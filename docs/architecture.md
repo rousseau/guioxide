@@ -10,8 +10,9 @@
 2. **Exception : les crates « cœur » sans Burn.** Ils sont réutilisés pour que guioxide
    interprète les fichiers exactement comme les outils qui les ont écrits :
    - `medoxide-core` : lecture NIfTI (en-tête, affine, voxels) ;
-   - `surfoxide-core` : maillage triangulaire, topologie, mesures ; à terme lecture/écriture
-     GIfTI et `.vtu` (voir [issues/surfoxide.md](issues/surfoxide.md)).
+   - `surfoxide-core` : maillage triangulaire, topologie, mesures ;
+   - `surfoxide-io` : lecture/écriture GIfTI (et `.vtu`), sans Burn (voir
+     [issues/surfoxide.md](issues/surfoxide.md)).
    Ils sont tirés en dépendance git, épinglés par `rev`.
 3. **Exécution par sous-processus** (jalon 7). guioxide appelle `medx`, `surfx` et `gyroxide`
    comme des programmes, suit leur sortie et relit les fichiers produits. Un plantage GPU
@@ -24,7 +25,7 @@
 ```
 crates/
   guioxide-bids/     indexation d'un jeu BIDS et de ses dérivées ; état d'avancement par sujet/session
-  guioxide-data/     chargement : volumes (via medoxide-core), maillages (via surfoxide-core),
+  guioxide-data/     chargement : volumes (via medoxide-core), maillages (via surfoxide-io),
                      TSV (qualité, poses, étiquettes), séquences de simulation ; cache
   guioxide-geom/     repères : voxel ↔ monde (RAS, mm), plans de coupe, intersection maillage/plan
   guioxide-view/     widgets de visualisation : vue de coupe, vue triplanaire, vue 3D, courbes

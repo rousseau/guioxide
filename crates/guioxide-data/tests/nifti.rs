@@ -118,8 +118,8 @@ fn chargeur_en_arriere_plan_et_eviction() {
         );
     }
     let (reveil, attente) = mpsc::channel();
-    let mut chargeur = Chargeur::new(9_000, move || reveil.send(()).unwrap());
-    let pret = |chargeur: &mut Chargeur, chemin: &Path| {
+    let mut chargeur = Chargeur::volumes(9_000, move || reveil.send(()).unwrap());
+    let pret = |chargeur: &mut Chargeur<_>, chemin: &Path| {
         for _ in 0..2 {
             match chargeur.demander(chemin) {
                 Etat::Pret(v) => return v,

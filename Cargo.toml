@@ -20,12 +20,18 @@ medoxide-core = { git = "https://github.com/rousseau/medoxide", rev = "51a6389e0
 
 eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
+egui-wgpu = "0.37"
 egui_extras = "0.37"
 egui_plot = "0.38"
 rfd = "0.17"
+# Lecture GIfTI provisoire : mêmes versions que surfoxide-io.
+quick-xml = "0.38"
+base64 = "0.22"
+flate2 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+pollster = "1"
 thiserror = "2"
 
 [profile.dev.package."*"]

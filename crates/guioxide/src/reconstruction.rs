@@ -259,7 +259,7 @@ impl Reconstruction {
                 return;
             }
             let pile_mouvement = &mut self.pile_mouvement;
-            self.triplanaire.ui(ui, &mut couches, curseur, |ui, case| {
+            self.triplanaire.ui(ui, &mut couches, &[], curseur, |ui, case| {
                 let mut enfant = ui.new_child(egui::UiBuilder::new().max_rect(case.shrink(4.0)));
                 courbe_mouvement(&mut enfant, mouvement, pile_mouvement, chemins.prefixe(), donnees);
             });

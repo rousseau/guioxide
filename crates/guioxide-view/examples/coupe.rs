@@ -4,11 +4,12 @@
 //! cargo run --release -p guioxide-view --example coupe -- <image.nii.gz> <sortie.ppm>
 //!     [--etiquettes <dseg.nii.gz>] [--contour <masque.nii.gz>]
 //!     [--orientation axiale|coronale|sagittale] [--curseur x,y,z] [--pas mm]
+//!     [--surface <fichier.surf.gii>]…     (contours, en couleurs successives)
 //! ```
 //!
 //! Sans `--curseur`, la coupe passe par le centre de l'image. Écrit une image PPM (P6).
 
-use guioxide_data::{TableEtiquettes, lire_volume};
+use guioxide_data::{TableEtiquettes, lire_surface, lire_volume};
 use guioxide_geom::{Orientation, Plan};
 use guioxide_view::coupe::{Couche, Rendu, composer};
 
@@ -81,8 +82,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rendu = composer(&plan, centre, taille, pas, &couches);
     let duree = debut.elapsed();
 
+    // Contours des surfaces, tracés point par point le long de chaque segment.
+    let couleurs = [
+        [0x7F, 0xB3, 0xE6],
+        [0xF2, 0xD0, 0x4B],
+        [0x7F, 0xE6, 0xA0],
+        [0xE6, 0x7F, 0xD9],
+    ];
+    let mut pixels = rendu.pixels.clone();
+    let surfaces: Vec<&String> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i > 0 && args[i - 1] == "--surface")
+        .map(|(_, a)| a)
+        .collect();
+    for (n, chemin) in surfaces.iter().enumerate() {
+        let m = lire_surface(chemin.as_ref())?;
+        let [r, g, b] = couleurs[n % couleurs.len()];
+        let vers_pixel = |(a, b): (f64, f64)| {
+            (
+                (a - centre.0) / pas + taille[0] as f64 / 2.0 - 0.5,
+                taille[1] as f64 / 2.0 - 0.5 - (b - centre.1) / pas,
+            )
+        };
+        for [p, q] in plan.intersection(&m.sommets, &m.faces) {
+            let (p, q) = (vers_pixel(p), vers_pixel(q));
+            let pas_trace = ((q.0 - p.0).abs().max((q.1 - p.1).abs()).ceil() as usize).max(1);
+            for k in 0..=pas_trace {
+                let t = k as f64 / pas_trace as f64;
+                let (x, y) = ((p.0 + t * (q.0 - p.0)).round(), (p.1 + t * (q.1 - p.1)).round());
+                if x >= 0.0 && y >= 0.0 && (x as usize) < taille[0] && (y as usize) < taille[1] {
+                    pixels[y as usize * taille[0] + x as usize] = egui::Color32::from_rgb(r, g, b);
+                }
+            }
+        }
+    }
+
     let mut ppm = format!("P6\n{} {}\n255\n", taille[0], taille[1]).into_bytes();
-    for p in &rendu.pixels {
+    for p in &pixels {
         ppm.extend_from_slice(&[p.r(), p.g(), p.b()]);
     }
     std::fs::write(sortie, ppm)?;

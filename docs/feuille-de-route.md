@@ -75,14 +75,22 @@ l'opérateur attendent un emplacement dans le contrat.
 
 ## Jalon 5 — Rendu 3D et onglet Surfaces
 
-- [ ] Lecture GIfTI (via `surfoxide-core` dès que disponible ; sinon module provisoire dans
+- [x] Lecture GIfTI (via `surfoxide-io` dès que disponible ; sinon module provisoire dans
       `guioxide-data`, à retirer ensuite).
-- [ ] Vue 3D wgpu : maillage, couleur par sommet, caméra orbitale, sélection de sommet.
-- [ ] Contours : intersection maillage/plan dans les coupes.
-- [ ] Onglet Surfaces complet, `surfqc.tsv`.
+- [x] Vue 3D wgpu : maillage, couleur par sommet, caméra orbitale, sélection de sommet.
+- [x] Contours : intersection maillage/plan dans les coupes.
+- [x] Onglet Surfaces complet, `surfqc.tsv`.
 
 *Fin* : surfaces blanche et piale superposées aux coupes au voxel près. Dépend des issues
 surfoxide.
+
+*État* : fait sur les surfaces réelles de `surfx` (sub-0avbc / ses-02 de `fetal-crl2025`, segmentation
+BOUNTI-19) : contours alignés sur le volume SVR dans les trois orientations, χ = 2 pour les quatre
+surfaces. Lecture GIfTI provisoire dans `guioxide-data` (identique à nibabel sur ces fichiers), à
+remplacer par `surfoxide-io` quand il sera publié (il existe sur la station, non poussé). Rendu 3D
+vérifié sans fenêtre (`cargo run --release -p guioxide-view --example rendu3d`) et dans l'application.
+Reporté : capture d'écran de la vue 3D ; `desc-surfqc.tsv` est lu s'il existe, sinon les mesures
+(sommets, faces, χ, aire) sont calculées dans guioxide.
 
 ## Jalon 6 — Onglet Simulation
 

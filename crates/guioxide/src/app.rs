@@ -34,6 +34,8 @@ pub struct Application {
     /// Curseur partagé par toutes les vues (monde, RAS, mm).
     curseur: PointMonde,
     visualisation: Visualisation,
+    /// Contexte wgpu d'eframe, pour la vue 3D.
+    rendu: Option<egui_wgpu::RenderState>,
 }
 
 impl Application {
@@ -53,6 +55,7 @@ impl Application {
             recents,
             curseur: PointMonde::default(),
             visualisation: Visualisation::new(&cc.egui_ctx),
+            rendu: cc.wgpu_render_state.clone(),
         };
         if let Some(chemin) = jeu {
             app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
@@ -246,7 +249,7 @@ impl Application {
             .zip(self.selection)
             .and_then(|(o, i)| Some((o, o.lignes.get(i)?, i)));
         if let Some((ouvert, ligne, i)) = session
-            && matches!(etape, Etape::Examen | Etape::Reconstruction)
+            && etape != Etape::Simulation
         {
             let derivees = self.sortie.derivees(&ouvert.jeu);
             let sujet = &ouvert.jeu.sujets[ligne.sujet];
@@ -255,9 +258,12 @@ impl Application {
             self.visualisation.suivre(&derivees, i);
             match etape {
                 Etape::Examen => self.visualisation.examen(ui, session, &chemins, &mut self.curseur),
-                _ => self
+                Etape::Reconstruction => self
                     .visualisation
                     .reconstruction(ui, session, &chemins, &mut self.curseur),
+                _ => self
+                    .visualisation
+                    .surfaces(ui, &chemins, self.rendu.as_ref(), &mut self.curseur),
             }
             return;
         }

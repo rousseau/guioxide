@@ -86,6 +86,19 @@ impl CheminsSession {
             .join(format!("{}{hemi}_{nom}.surf.gii", self.prefixe))
     }
 
+    /// Champ par sommet (`curv`, `sulc`, `thickness`…) d'un hémisphère.
+    pub fn champ(&self, nom: &str, hemi: Option<&str>) -> PathBuf {
+        let hemi = hemi.map(|h| format!("_hemi-{h}")).unwrap_or_default();
+        self.anat("surfx-surfaces")
+            .join(format!("{}{hemi}_{nom}.shape.gii", self.prefixe))
+    }
+
+    /// Contrôle des maillages (une ligne par surface).
+    pub fn controle_surfaces(&self) -> PathBuf {
+        self.anat("surfx-surfaces")
+            .join(format!("{}_desc-surfqc.tsv", self.prefixe))
+    }
+
     /// Dossier des runs gyroxide (`run-*`).
     pub fn simulations(&self) -> PathBuf {
         self.anat("gyroxide")

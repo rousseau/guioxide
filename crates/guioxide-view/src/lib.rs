@@ -3,8 +3,10 @@
 //! Thème, polices, pastilles d'état, vues de coupe et triplanaire. La vue 3D arrive au jalon 5.
 
 pub mod coupe;
+pub mod palettes;
 pub mod polices;
 pub mod theme;
+pub mod vue3d;
 
 use egui::{RichText, Ui};
 use guioxide_bids::EtatEtape;

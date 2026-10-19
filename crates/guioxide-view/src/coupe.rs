@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use egui::{Color32, ColorImage, Pos2, Rect, Response, Sense, Stroke, TextureHandle, TextureOptions, Ui, Vec2};
-use guioxide_data::TableEtiquettes;
-use guioxide_geom::{Affine, Interpolation, Orientation, Plan, PointMonde, Volume};
+use guioxide_data::{Maillage, TableEtiquettes};
+use guioxide_geom::{Affine, Interpolation, Orientation, Plan, PointMonde, Segment, Volume};
 
 use crate::theme;
 
@@ -38,6 +38,14 @@ impl Couche {
             visible: true,
         }
     }
+}
+
+/// Une surface dont le contour (intersection avec le plan de coupe) est tracé sur les vues.
+#[derive(Clone)]
+pub struct Surface {
+    pub maillage: Arc<Maillage>,
+    pub couleur: [u8; 3],
+    pub visible: bool,
 }
 
 /// Plan d'une vue.
@@ -83,6 +91,8 @@ pub struct VueCoupe {
     zoom: Option<f32>,
     defilement: f32,
     texture: Option<(TextureHandle, Cle, Rect)>,
+    /// Contours des surfaces pour le plan courant : (maillage, plan, segments en coordonnées du plan).
+    contours: Vec<(usize, Plan, Vec<Segment>)>,
 }
 
 impl VueCoupe {
@@ -93,6 +103,7 @@ impl VueCoupe {
             zoom: None,
             defilement: 0.0,
             texture: None,
+            contours: Vec::new(),
         }
     }
 
@@ -103,7 +114,14 @@ impl VueCoupe {
     }
 
     /// Affiche la vue dans `rect` et traite les interactions. Renvoie la réponse de la zone.
-    pub fn ui(&mut self, ui: &mut Ui, rect: Rect, couches: &mut [Couche], curseur: &mut PointMonde) -> Response {
+    pub fn ui(
+        &mut self,
+        ui: &mut Ui,
+        rect: Rect,
+        couches: &mut [Couche],
+        surfaces: &[Surface],
+        curseur: &mut PointMonde,
+    ) -> Response {
         let reponse = ui.allocate_rect(rect, Sense::click_and_drag());
         ui.painter().rect_filled(rect, 0.0, theme::FOND);
         let Some(reference) = couches.iter().find(|c| c.visible).map(|c| c.volume.clone()) else {
@@ -167,6 +185,28 @@ impl VueCoupe {
         if let Some((texture, _, zone)) = &self.texture {
             let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
             peintre.image(texture.id(), *zone, uv, Color32::WHITE);
+        }
+
+        // Contours des surfaces, recalculés seulement quand le plan change.
+        let vers_ecran = |(a, b): (f64, f64)| {
+            rect.center() + Vec2::new((a - centre_plan.0) as f32, -(b - centre_plan.1) as f32) * zoom
+        };
+        for s in surfaces.iter().filter(|s| s.visible) {
+            let id = Arc::as_ptr(&s.maillage) as usize;
+            let segments = match self.contours.iter().position(|(i, p, _)| *i == id && *p == plan) {
+                Some(k) => &self.contours[k].2,
+                None => {
+                    self.contours.retain(|(i, _, _)| *i != id);
+                    self.contours
+                        .push((id, plan, plan.intersection(&s.maillage.sommets, &s.maillage.faces)));
+                    &self.contours.last().unwrap().2
+                }
+            };
+            let [r, g, b] = s.couleur;
+            let trait_ = Stroke::new(1.5, Color32::from_rgb(r, g, b));
+            for [p, q] in segments {
+                peintre.line_segment([vers_ecran(*p), vers_ecran(*q)], trait_);
+            }
         }
 
         // Réticule à la position du curseur dans le plan.
@@ -424,6 +464,7 @@ impl Triplanaire {
         &mut self,
         ui: &mut Ui,
         couches: &mut [Couche],
+        surfaces: &[Surface],
         curseur: &mut PointMonde,
         quatrieme: impl FnOnce(&mut Ui, Rect),
     ) {
@@ -435,7 +476,7 @@ impl Triplanaire {
             Rect::from_min_size(zone.min + Vec2::new(x * (l + ecart), y * (h + ecart)), Vec2::new(l, h))
         });
         for (vue, case) in self.vues.iter_mut().zip(cases) {
-            vue.ui(ui, case, couches, curseur);
+            vue.ui(ui, case, couches, surfaces, curseur);
         }
         quatrieme(ui, cases[3]);
         ui.advance_cursor_after_rect(zone);

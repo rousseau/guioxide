@@ -10,7 +10,7 @@
 
 mod plan;
 
-pub use plan::{Coupe, Interpolation, Orientation, Plan};
+pub use plan::{Coupe, Interpolation, Orientation, Plan, Segment};
 
 /// Point du repère monde : RAS, en millimètres.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

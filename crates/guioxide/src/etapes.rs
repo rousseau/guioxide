@@ -8,13 +8,15 @@ use std::sync::Arc;
 use egui::{RichText, Ui};
 use guioxide_bids::{CheminsSession, Session};
 use guioxide_data::{
-    Chargeur, ErreurDonnees, Etat, MouvementCoupe, QualiteCoupe, VolumeLu, lire_geometrie, lire_mouvement, lire_qualite,
+    Chargeur, ErreurDonnees, Etat, Maillage, MouvementCoupe, QualiteCoupe, VolumeLu, lire_geometrie, lire_mouvement,
+    lire_qualite,
 };
 use guioxide_geom::{Affine, PointMonde};
 use guioxide_view::theme;
 
 use crate::examen::Examen;
 use crate::reconstruction::Reconstruction;
+use crate::surfaces::Surfaces;
 
 /// Taille du cache des volumes (octets de voxels).
 const CACHE: usize = 4 << 30;
@@ -23,15 +25,15 @@ const CACHE: usize = 4 << 30;
 pub const CONTOUR: [u8; 3] = [0xE0, 0x7B, 0x39];
 
 /// État d'un volume de couche.
-pub enum Statut {
+pub enum Statut<T = VolumeLu> {
     Absent,
     EnCours,
-    Pret(Arc<VolumeLu>),
+    Pret(Arc<T>),
     Erreur(String),
 }
 
-impl Statut {
-    pub fn pret(&self) -> Option<&Arc<VolumeLu>> {
+impl<T> Statut<T> {
+    pub fn pret(&self) -> Option<&Arc<T>> {
         match self {
             Statut::Pret(v) => Some(v),
             _ => None,
@@ -117,20 +119,34 @@ impl DonneesSession {
 
 /// Lecture des volumes et curseur initial, partagés par les écrans.
 pub struct Base {
-    chargeur: Chargeur,
+    volumes: Chargeur<VolumeLu>,
+    surfaces: Chargeur<Maillage>,
+    champs: Chargeur<Vec<f32>>,
     curseur_place: bool,
+}
+
+fn statut<T: Send + Sync + 'static>(chargeur: &mut Chargeur<T>, chemin: &Path) -> Statut<T> {
+    if !chemin.exists() {
+        return Statut::Absent;
+    }
+    match chargeur.demander(chemin) {
+        Etat::EnCours => Statut::EnCours,
+        Etat::Pret(v) => Statut::Pret(v),
+        Etat::Erreur(e) => Statut::Erreur(e),
+    }
 }
 
 impl Base {
     pub fn statut(&mut self, chemin: &Path) -> Statut {
-        if !chemin.exists() {
-            return Statut::Absent;
-        }
-        match self.chargeur.demander(chemin) {
-            Etat::EnCours => Statut::EnCours,
-            Etat::Pret(v) => Statut::Pret(v),
-            Etat::Erreur(e) => Statut::Erreur(e),
-        }
+        statut(&mut self.volumes, chemin)
+    }
+
+    pub fn surface(&mut self, chemin: &Path) -> Statut<Maillage> {
+        statut(&mut self.surfaces, chemin)
+    }
+
+    pub fn champ(&mut self, chemin: &Path) -> Statut<Vec<f32>> {
+        statut(&mut self.champs, chemin)
     }
 
     /// Place le curseur au centre du premier volume affiché d'une session.
@@ -149,20 +165,27 @@ pub struct Visualisation {
     donnees: Option<DonneesSession>,
     examen: Examen,
     reconstruction: Reconstruction,
+    surfaces: Surfaces,
 }
 
 impl Visualisation {
     pub fn new(ctx: &egui::Context) -> Visualisation {
-        let ctx = ctx.clone();
+        let reveil = |ctx: &egui::Context| {
+            let ctx = ctx.clone();
+            move || ctx.request_repaint()
+        };
         Visualisation {
             base: Base {
-                chargeur: Chargeur::new(CACHE, move || ctx.request_repaint()),
+                volumes: Chargeur::volumes(CACHE, reveil(ctx)),
+                surfaces: Chargeur::surfaces(CACHE / 4, reveil(ctx)),
+                champs: Chargeur::champs(CACHE / 16, reveil(ctx)),
                 curseur_place: false,
             },
             session: None,
             donnees: None,
             examen: Examen::default(),
             reconstruction: Reconstruction::default(),
+            surfaces: Surfaces::default(),
         }
     }
 
@@ -175,6 +198,7 @@ impl Visualisation {
             self.donnees = None;
             self.examen = Examen::default();
             self.reconstruction = Reconstruction::default();
+            self.surfaces = Surfaces::default();
         }
     }
 
@@ -198,10 +222,19 @@ impl Visualisation {
         self.reconstruction
             .ui(ui, &mut self.base, donnees, session, chemins, curseur);
     }
+    pub fn surfaces(
+        &mut self,
+        ui: &mut Ui,
+        chemins: &CheminsSession,
+        rendu: Option<&egui_wgpu::RenderState>,
+        curseur: &mut PointMonde,
+    ) {
+        self.surfaces.ui(ui, &mut self.base, chemins, rendu, curseur);
+    }
 }
 
 /// Pastille d'état d'un fichier ou d'une couche.
-pub fn icone_statut(ui: &mut Ui, statut: &Statut) {
+pub fn icone_statut<T>(ui: &mut Ui, statut: &Statut<T>) {
     match statut {
         Statut::Absent => ui.label(RichText::new("○").color(theme::TEXTE_SECONDAIRE)),
         Statut::EnCours => ui.spinner(),

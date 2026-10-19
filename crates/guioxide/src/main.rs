@@ -7,6 +7,7 @@ mod etapes;
 mod examen;
 mod ouverture;
 mod reconstruction;
+mod surfaces;
 
 use std::path::PathBuf;
 

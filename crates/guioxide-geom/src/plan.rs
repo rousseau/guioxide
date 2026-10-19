@@ -62,6 +62,9 @@ pub struct Coupe {
     pub valeurs: Vec<f32>,
 }
 
+/// Segment de contour, en coordonnées du plan `(a, b)`.
+pub type Segment = [(f64, f64); 2];
+
 /// Mode d'interpolation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Interpolation {
@@ -157,6 +160,39 @@ impl Plan {
     }
 }
 
+impl Plan {
+    /// Intersection d'un maillage triangulaire avec le plan : un segment par triangle coupé, en coordonnées du plan
+    /// `(a, b)`. Un sommet posé exactement sur le plan est compté du côté positif, pour ne pas doubler les segments.
+    pub fn intersection(&self, sommets: &[[f32; 3]], faces: &[[u32; 3]]) -> Vec<Segment> {
+        let n = self.normale();
+        let d: Vec<f64> = sommets
+            .iter()
+            .map(|s| (0..3).map(|c| (s[c] as f64 - self.origine[c]) * n[c]).sum())
+            .collect();
+        let point = |i: u32, j: u32| -> (f64, f64) {
+            let (si, sj) = (sommets[i as usize], sommets[j as usize]);
+            let (di, dj) = (d[i as usize], d[j as usize]);
+            let t = di / (di - dj);
+            let p: [f64; 3] = std::array::from_fn(|c| si[c] as f64 + t * (sj[c] as f64 - si[c] as f64));
+            self.vers_plan(p)
+        };
+        let mut segments = Vec::new();
+        for f in faces {
+            let positif = f.map(|i| d[i as usize] >= 0.0);
+            if positif.iter().all(|&p| p) || positif.iter().all(|&p| !p) {
+                continue;
+            }
+            // Le sommet seul de son côté : les deux arêtes qui en partent coupent le plan.
+            let seul = (0..3)
+                .find(|&k| positif[k] != positif[(k + 1) % 3] && positif[k] != positif[(k + 2) % 3])
+                .unwrap();
+            let (a, b, c) = (f[seul], f[(seul + 1) % 3], f[(seul + 2) % 3]);
+            segments.push([point(a, b), point(a, c)]);
+        }
+        segments
+    }
+}
+
 fn produit_scalaire(a: [f64; 3], b: [f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
@@ -170,6 +206,53 @@ fn normaliser(a: [f64; 3]) -> [f64; 3] {
 mod tests {
     use super::*;
     use crate::tests::{PILE_OBLIQUE, volume_lineaire};
+
+    #[test]
+    fn intersection_d_un_cube_par_un_plan_axial() {
+        // Cube [0, 2]³, 12 triangles ; plan z = 1 : contour carré de périmètre 8, 8 segments (2 par face latérale).
+        let sommets: Vec<[f32; 3]> = (0..8)
+            .map(|i| {
+                [
+                    (i & 1) as f32 * 2.0,
+                    (i >> 1 & 1) as f32 * 2.0,
+                    (i >> 2 & 1) as f32 * 2.0,
+                ]
+            })
+            .collect();
+        let quads = [
+            [0, 1, 3, 2],
+            [4, 6, 7, 5],
+            [0, 4, 5, 1],
+            [2, 3, 7, 6],
+            [0, 2, 6, 4],
+            [1, 5, 7, 3],
+        ];
+        let faces: Vec<[u32; 3]> = quads
+            .iter()
+            .flat_map(|q| [[q[0], q[1], q[2]], [q[0], q[2], q[3]]])
+            .collect();
+        let plan = Plan::aligne(Orientation::Axiale, [0.0, 0.0, 1.0]);
+        let segments = plan.intersection(&sommets, &faces);
+        assert_eq!(segments.len(), 8);
+        let perimetre: f64 = segments
+            .iter()
+            .map(|[p, q]| ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt())
+            .sum();
+        assert!((perimetre - 8.0).abs() < 1e-9, "{perimetre}");
+        // Tous les points sur le bord du carré [−2, 0] × [0, 2] (axe u = −x).
+        for (a, b) in segments.iter().flatten() {
+            let bord = (a.abs() < 1e-9 || (a + 2.0).abs() < 1e-9) || (b.abs() < 1e-9 || (b - 2.0).abs() < 1e-9);
+            assert!(
+                bord && (-2.0..=0.0).contains(a) && (0.0..=2.0).contains(b),
+                "({a}, {b})"
+            );
+        }
+        assert!(
+            Plan::aligne(Orientation::Axiale, [0.0, 0.0, 3.0])
+                .intersection(&sommets, &faces)
+                .is_empty()
+        );
+    }
 
     #[test]
     fn orientation_des_coupes_d_une_pile() {
