@@ -21,6 +21,11 @@ impl CheminsSession {
         }
     }
 
+    /// Préfixe des noms de fichiers : `sub-X_ses-Y` ou `sub-X`.
+    pub fn prefixe(&self) -> &str {
+        &self.prefixe
+    }
+
     /// Dossier `anat/` de la session dans les dérivées de `pipeline`.
     pub fn anat(&self, pipeline: &str) -> PathBuf {
         self.derivees.join(pipeline).join(&self.dossier).join("anat")
@@ -36,6 +41,30 @@ impl CheminsSession {
     pub fn svr(&self) -> PathBuf {
         self.anat("medx-svr")
             .join(format!("{}_desc-svr_T2w.nii.gz", self.prefixe))
+    }
+
+    /// Paramètres de la reconstruction (`.json` voisin du volume).
+    pub fn parametres_svr(&self) -> PathBuf {
+        self.anat("medx-svr")
+            .join(format!("{}_desc-svr_T2w.json", self.prefixe))
+    }
+
+    /// Mouvement par coupe estimé par le SVR.
+    pub fn mouvement(&self) -> PathBuf {
+        self.anat("medx-svr")
+            .join(format!("{}_desc-svr_motion.tsv", self.prefixe))
+    }
+
+    /// Qualité par coupe après recalage (SVR).
+    pub fn qualite(&self) -> PathBuf {
+        self.anat("medx-svr")
+            .join(format!("{}_desc-svr_slicequality.tsv", self.prefixe))
+    }
+
+    /// Qualité des acquisitions avant reconstruction, si medoxide la calcule.
+    pub fn qualite_acquisition(&self) -> PathBuf {
+        self.anat("medx-svr")
+            .join(format!("{}_desc-acq_slicequality.tsv", self.prefixe))
     }
 
     /// Segmentation (`medx-bounti`), sur la grille du volume reconstruit.

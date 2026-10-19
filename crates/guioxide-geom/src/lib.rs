@@ -33,6 +33,31 @@ impl Affine {
         [self.0[0][c], self.0[1][c], self.0[2][c]]
     }
 
+    /// Longueur des colonnes de la partie linéaire : taille des voxels le long de chaque axe d'indice (mm).
+    pub fn tailles(&self) -> [f64; 3] {
+        std::array::from_fn(|c| norme(self.colonne(c)))
+    }
+
+    /// Valeur absolue du déterminant de la partie linéaire : volume d'un voxel (mm³).
+    pub fn volume_voxel(&self) -> f64 {
+        let m = &self.0;
+        (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+            .abs()
+    }
+
+    /// Angle (degrés) de la rotation d'une transformation rigide : `acos((trace(R) − 1) / 2)`.
+    pub fn angle_rotation(&self) -> f64 {
+        let trace = self.0[0][0] + self.0[1][1] + self.0[2][2];
+        ((trace - 1.0) / 2.0).clamp(-1.0, 1.0).acos().to_degrees()
+    }
+
+    /// Déplacement (mm) du point `p` par la transformation : `‖T(p) − p‖`.
+    pub fn deplacement(&self, p: [f64; 3]) -> f64 {
+        let q = self.appliquer(p);
+        norme(std::array::from_fn(|c| q[c] - p[c]))
+    }
+
     /// Inverse d'une affine ; `None` si la partie linéaire est singulière.
     pub fn inverse(&self) -> Option<Affine> {
         let m = &self.0;
@@ -119,7 +144,7 @@ impl Volume {
 
     /// Taille des voxels le long de chaque axe d'indice (mm).
     pub fn taille_voxel(&self) -> [f64; 3] {
-        std::array::from_fn(|c| norme(self.affine.colonne(c)))
+        self.affine.tailles()
     }
 
     pub fn valeur(&self, i: usize, j: usize, k: usize) -> f32 {
@@ -292,6 +317,22 @@ mod tests {
     }
 
     #[test]
+    fn mesures_d_une_transformation_rigide() {
+        // Rotation de 30° autour de z, puis translation (1, 2, 2).
+        let (c, s) = (30f64.to_radians().cos(), 30f64.to_radians().sin());
+        let m = Affine([
+            [c, -s, 0.0, 1.0],
+            [s, c, 0.0, 2.0],
+            [0.0, 0.0, 1.0, 2.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!((m.angle_rotation() - 30.0).abs() < 1e-9);
+        assert!((m.deplacement([0.0, 0.0, 0.0]) - 3.0).abs() < 1e-12);
+        assert_eq!(Affine::IDENTITE.angle_rotation(), 0.0);
+        assert_eq!(Affine::IDENTITE.deplacement([4.0, 5.0, 6.0]), 0.0);
+    }
+
+    #[test]
     fn affine_singuliere_refusee() {
         let mut a = Affine::IDENTITE;
         a.0[2][2] = 0.0;
@@ -354,6 +395,7 @@ mod tests {
         a.0[0][3] = -10.0;
         let vol = Volume::new([4, 2, 3], a, vec![0.0; 24]).unwrap();
         assert_eq!(vol.taille_voxel(), [0.5, 0.5, 2.0]);
+        assert_eq!(vol.affine().volume_voxel(), 0.5);
         assert_eq!(vol.centre(), PointMonde([-9.25, 0.25, 2.0]));
         assert_eq!(vol.boite(), ([-10.25, -0.25, -1.0], [-8.25, 0.75, 5.0]));
     }

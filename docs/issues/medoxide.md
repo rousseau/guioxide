@@ -30,6 +30,8 @@ ne coïncident pas avec le volume reconstruit.
 
 ## 2. Sorties du SVR : chemins BIDS et noms fixes
 
+> **Ouverte** : [medoxide#2](https://github.com/rousseau/medoxide/issues/2).
+
 Aujourd'hui `medx svr recon` écrit où l'appelant le demande (`--output`, `--poses`).
 
 **Proposition** : une option `--bids <racine> --participant X --session Y [--output-dir <sortie>]`
@@ -48,6 +50,8 @@ Les options actuelles restent pour l'usage hors BIDS. Même logique pour `medx f
 
 ## 3. Fichier de mouvement : en-tête et nom de pile
 
+> **Ouverte** : [medoxide#3](https://github.com/rousseau/medoxide/issues/3).
+
 `SvrOutput::write_poses` écrit `indice_de_pile \t coupe \t` + 16 valeurs (ordre colonne),
 **sans en-tête**, l'indice étant la position de la pile dans `--input`.
 
@@ -62,6 +66,8 @@ guioxide en tire translation (mm) et rotation (°) par coupe pour la courbe de m
 ---
 
 ## 4. Qualité par coupe : nom de pile, exclusion, motif
+
+> **Ouverte** : [medoxide#4](https://github.com/rousseau/medoxide/issues/4).
 
 `write_quality` écrit déjà `stack coupe recalee score_avant score_apres nb_recalages
 correction_rms_mm`.
@@ -79,6 +85,8 @@ signal, couverture, par pile et par coupe) ? Si oui, même format, `desc-acq_sli
 ---
 
 ## 5. Segmentation : nom et table d'étiquettes
+
+> **Ouverte** : [medoxide#5](https://github.com/rousseau/medoxide/issues/5).
 
 Pour `medoxide-bounti` :
 

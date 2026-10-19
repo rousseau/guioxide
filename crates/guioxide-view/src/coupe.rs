@@ -376,6 +376,22 @@ pub fn composer(plan: &Plan, centre: (f64, f64), taille: [usize; 2], pas: f64, c
     ColorImage::new([l, h], pixels)
 }
 
+/// Vignette de la coupe `k` d'une pile, dans son plan natif : `cote` pixels sur le plus grand côté, fenêtrage
+/// automatique de la pile.
+pub fn vignette(volume: &Arc<Volume>, k: usize, cote: usize) -> ColorImage {
+    let [nx, ny, _] = volume.dims();
+    let centre = volume.vers_monde([(nx as f64 - 1.0) / 2.0, (ny as f64 - 1.0) / 2.0, k as f64]);
+    let plan = Plan::natif(volume.affine(), centre);
+    let [ti, tj, _] = volume.taille_voxel();
+    let (lu, lv) = (nx as f64 * ti, ny as f64 * tj);
+    let pas = lu.max(lv) / cote as f64;
+    let taille = [
+        ((lu / pas).round() as usize).max(1),
+        ((lv / pas).round() as usize).max(1),
+    ];
+    composer(&plan, (0.0, 0.0), taille, pas, &[Couche::image(volume.clone())])
+}
+
 fn melanger(fond: Color32, dessus: Color32, alpha: f32) -> Color32 {
     let m = |a: u8, b: u8| (a as f32 * (1.0 - alpha) + b as f32 * alpha).round() as u8;
     Color32::from_rgb(

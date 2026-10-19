@@ -17,3 +17,5 @@ egui_extras.workspace = true
 rfd.workspace = true
 serde.workspace = true
 guioxide-data.workspace = true
+egui_plot.workspace = true
+serde_json.workspace = true

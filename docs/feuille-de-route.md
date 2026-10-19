@@ -59,12 +59,19 @@ en 4 ms. Fluidité dans la fenêtre : à confirmer à la main.
 
 ## Jalon 4 — Onglets Examen et Reconstruction
 
-- [ ] Examen : piles, vue native, vignettes, `slicequality.tsv`, masques.
-- [ ] Reconstruction : sous-étapes, triplanaire avec segmentation et `dseg.tsv`, courbe de
+- [x] Examen : piles, vue native, vignettes, `slicequality.tsv`, masques.
+- [x] Reconstruction : sous-étapes, triplanaire avec segmentation et `dseg.tsv`, courbe de
       mouvement (`motion.tsv`), paramètres (`.json`).
 
 *Fin* : sur le jeu de test, toutes les sorties medoxide du contrat sont visibles.
 Dépend des issues medoxide.
+
+*État* : fait sur des sorties réelles de medoxide (sub-0104 du jeu de Marseille) converties au format
+du contrat ; mouvement par coupe identique au calcul numpy/nibabel (`cargo run --release -p
+guioxide-data --example svr`). Les sorties du contrat ne seront produites telles quelles qu'après les
+issues [medoxide#2 à #5](https://github.com/rousseau/medoxide/issues). Reportés : mode « comparer 2
+piles », couche « pile source projetée », export NIfTI, disposition 1 × 3 ; « Valider » et la note de
+l'opérateur attendent un emplacement dans le contrat.
 
 ## Jalon 5 — Rendu 3D et onglet Surfaces
 

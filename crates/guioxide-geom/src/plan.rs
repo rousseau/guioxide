@@ -19,6 +19,21 @@ pub enum Orientation {
 impl Orientation {
     pub const TOUTES: [Orientation; 3] = [Orientation::Axiale, Orientation::Coronale, Orientation::Sagittale];
 
+    /// Orientation des coupes d'une pile : axe monde dominant de la normale à ses coupes (`col0 × col1`).
+    pub fn des_coupes(affine: &Affine) -> Orientation {
+        let (a, b) = (affine.colonne(0), affine.colonne(1));
+        let n = [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ];
+        match (0..3).max_by(|&i, &j| n[i].abs().total_cmp(&n[j].abs())) {
+            Some(0) => Orientation::Sagittale,
+            Some(1) => Orientation::Coronale,
+            _ => Orientation::Axiale,
+        }
+    }
+
     pub fn nom(self) -> &'static str {
         match self {
             Orientation::Axiale => "axiale",
@@ -155,6 +170,20 @@ fn normaliser(a: [f64; 3]) -> [f64; 3] {
 mod tests {
     use super::*;
     use crate::tests::{PILE_OBLIQUE, volume_lineaire};
+
+    #[test]
+    fn orientation_des_coupes_d_une_pile() {
+        assert_eq!(Orientation::des_coupes(&Affine::IDENTITE), Orientation::Axiale);
+        // Pile oblique réelle : coupes proches du plan axial (normale surtout selon z).
+        assert_eq!(Orientation::des_coupes(&PILE_OBLIQUE), Orientation::Axiale);
+        let sagittale = Affine([
+            [0.0, 0.0, 3.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert_eq!(Orientation::des_coupes(&sagittale), Orientation::Sagittale);
+    }
 
     #[test]
     fn plans_alignes_convention_radiologique() {

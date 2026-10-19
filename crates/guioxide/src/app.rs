@@ -255,7 +255,9 @@ impl Application {
             self.visualisation.suivre(&derivees, i);
             match etape {
                 Etape::Examen => self.visualisation.examen(ui, session, &chemins, &mut self.curseur),
-                _ => self.visualisation.reconstruction(ui, &chemins, &mut self.curseur),
+                _ => self
+                    .visualisation
+                    .reconstruction(ui, session, &chemins, &mut self.curseur),
             }
             return;
         }

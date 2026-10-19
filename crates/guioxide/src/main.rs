@@ -4,7 +4,9 @@
 
 mod app;
 mod etapes;
+mod examen;
 mod ouverture;
+mod reconstruction;
 
 use std::path::PathBuf;
 

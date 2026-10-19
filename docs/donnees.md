@@ -86,11 +86,13 @@ colonne, sans en-tête, l'indice de pile étant la position dans `--input`. À a
 
 - ligne d'en-tête : `stack slice m00 m10 m20 m30 m01 … m33` (ordre colonne, inchangé) ;
 - `stack` = nom de fichier de la pile, pas son indice ;
-- sens de la matrice documenté dans le `.json` voisin (coupe → monde, ou correction à
-  composer avec l'affine de la pile).
+- sens de la matrice documenté dans le `.json` voisin. D'après le code du SVR
+  (`Slice::with_motion`), c'est le mouvement rigide `M` de la coupe, absolu par rapport à la
+  géométrie d'en-tête et composé dans le repère monde : coupe → monde = `M · A · T(0, 0, k)`.
 
-guioxide en déduit, par coupe, une translation (mm) et un angle de rotation (°) pour la
-courbe de mouvement de l'onglet 2.
+guioxide en déduit, par coupe, le déplacement du centre de la coupe `‖M·c − c‖` (mm, `c` = centre
+de la coupe `k` dans la géométrie d'en-tête) et l'angle de rotation de `M` (°), pour la courbe de
+mouvement de l'onglet 2.
 
 ## 3 · Surfaces — surfoxide
 
