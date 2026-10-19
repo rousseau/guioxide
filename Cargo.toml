@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://github.com/rousseau/guioxide"
+
+[workspace.dependencies]
+guioxide-geom = { path = "crates/guioxide-geom" }
+guioxide-data = { path = "crates/guioxide-data" }
+guioxide-bids = { path = "crates/guioxide-bids" }
+guioxide-view = { path = "crates/guioxide-view" }
+
+eframe = "0.37"
+egui = "0.37"
+
+[profile.dev.package."*"]
+# Les dépendances (wgpu, egui) optimisées même en dev : l'interface reste fluide en debug.
+opt-level = 2

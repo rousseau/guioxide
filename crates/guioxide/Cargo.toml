@@ -1,0 +1,15 @@
+[package]
+name = "guioxide"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Interface graphique de la suite oxide pour l'IRM fœtale"
+
+[dependencies]
+guioxide-bids.workspace = true
+guioxide-geom.workspace = true
+guioxide-view.workspace = true
+eframe.workspace = true
+egui.workspace = true

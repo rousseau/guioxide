@@ -28,7 +28,7 @@ Plateformes visées : macOS (Apple Silicon) et Linux, au minimum.
 | [docs/developpement.md](docs/developpement.md) | conventions communes aux quatre dépôts (toolchain, plateformes, CI, données de test) |
 | [docs/issues/](docs/issues/) | demandes à ouvrir sur medoxide, surfoxide et gyroxide |
 
-## Démarrage (à partir du jalon 1)
+## Démarrage
 
 ```bash
 cargo run --release -p guioxide

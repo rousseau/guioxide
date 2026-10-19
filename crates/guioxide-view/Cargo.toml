@@ -1,0 +1,11 @@
+[package]
+name = "guioxide-view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+guioxide-bids.workspace = true
+egui.workspace = true

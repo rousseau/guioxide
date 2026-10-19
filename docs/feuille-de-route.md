@@ -14,10 +14,10 @@ vient en dernier.
 
 ## Jalon 1 — Squelette
 
-- [ ] Workspace Cargo (`guioxide`, `guioxide-bids`, `guioxide-data`, `guioxide-geom`,
+- [x] Workspace Cargo (`guioxide`, `guioxide-bids`, `guioxide-data`, `guioxide-geom`,
       `guioxide-view`), `rust-toolchain.toml` commun.
-- [ ] Application `eframe` : en-tête, 5 onglets vides, barre de pied, thème et polices.
-- [ ] CI : `fmt`, `clippy -D warnings`, `test` sur `ubuntu-latest` et `macos-latest` ;
+- [x] Application `eframe` : en-tête, 5 onglets vides, barre de pied, thème et polices.
+- [x] CI : `fmt`, `clippy -D warnings`, `test` sur `ubuntu-latest` et `macos-latest` ;
       compilation du binaire sur les deux.
 
 *Fin* : `cargo run -p guioxide` ouvre la fenêtre sur Mac et sur Linux.
