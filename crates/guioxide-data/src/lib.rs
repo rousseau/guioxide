@@ -1,7 +1,12 @@
 //! `guioxide-data` : chargement des données lues par guioxide.
 //!
+//! guioxide ne lit, n'écrit ni ne traite les données lui-même : ce crate adapte à l'affichage ce que fournissent les
+//! crates des outils (sans Burn, épinglés par `rev`).
+//!
 //! - Volumes NIfTI, lus par `medoxide-core` (voxels et affine par la même règle sform / qform que les outils) ;
-//! - tableaux TSV (qualité, poses, étiquettes) ;
+//! - surfaces et champs GIfTI, lus par `surfoxide-io`, topologie et aire par `surfoxide-core` ;
+//! - **provisoires**, en attendant les outils : qualité, mouvement et étiquettes (medoxide#6), runs de gyroxide
+//!   (gyroxide#3) ; tableaux TSV génériques pour l'indexation BIDS ;
 //! - [`Chargeur`] : lecture sur des fils d'arrière-plan, avec un cache évincé par taille.
 //!
 //! Aucune dépendance graphique.

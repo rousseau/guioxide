@@ -17,7 +17,13 @@
 3. **Exécution par sous-processus** (jalon 7). guioxide appelle `medx`, `surfx` et `gyroxide`
    comme des programmes, suit leur sortie et relit les fichiers produits. Un plantage GPU
    d'un outil ne ferme pas l'interface ; chaque outil garde son propre cycle de versions.
-4. **Toute la logique testable hors de l'interface.** L'indexation BIDS, la lecture des
+4. **guioxide ne fait que l'interface.** Toute lecture, écriture ou traitement de données (formats,
+   mesures, mouvement, indices) vient des crates des outils ; guioxide les adapte à l'affichage. Ce qui
+   manque se demande par une issue sur l'outil, plutôt que d'être réécrit dans guioxide. Restent dans
+   guioxide : la navigation (indexation BIDS, état d'avancement), l'échantillonnage pour l'affichage, le
+   rendu. Les lecteurs encore écrits dans guioxide sont marqués **provisoires**, avec leur issue
+   (medoxide#6, gyroxide#3).
+5. **Toute la logique testable hors de l'interface.** L'indexation BIDS, la lecture des
    données et la géométrie sont dans des crates sans dépendance graphique, testés en CI.
 
 ## Crates du workspace

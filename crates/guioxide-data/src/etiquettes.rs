@@ -1,4 +1,7 @@
 //! Table des étiquettes d'une segmentation (`*_dseg.tsv`, format BIDS : `index name abbreviation color`).
+//!
+//! **Provisoire** pour la lecture du fichier : à remplacer par le lecteur de `medoxide-core`
+//! ([medoxide#6](https://github.com/rousseau/medoxide/issues/6)). Les couleurs par défaut relèvent de l'affichage.
 
 use std::collections::BTreeMap;
 use std::path::Path;

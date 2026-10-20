@@ -11,9 +11,8 @@ guioxide-geom.workspace = true
 medoxide-core.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true
-quick-xml.workspace = true
-base64.workspace = true
-flate2.workspace = true
+surfoxide-core.workspace = true
+surfoxide-io.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

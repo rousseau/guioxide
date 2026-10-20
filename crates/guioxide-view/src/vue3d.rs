@@ -651,7 +651,7 @@ mod tests {
         Maillage {
             sommets: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
             faces: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
-            structure: None,
+            ..Default::default()
         }
     }
 

@@ -1,7 +1,7 @@
 //! Onglet 3 · Surfaces : maillages de surfoxide, contours dans trois coupes, vue 3D colorée par un champ par sommet,
 //! contrôle des maillages.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use egui::{Color32, RichText, Ui, Vec2};
@@ -60,43 +60,6 @@ impl Coloration {
     }
 }
 
-/// Mesures d'un maillage, calculées une fois.
-struct Mesures {
-    sommets: usize,
-    faces: usize,
-    euler: i64,
-    aire_mm2: f64,
-}
-
-fn mesurer(m: &Maillage) -> Mesures {
-    let mut aretes = HashSet::with_capacity(m.faces.len() * 3 / 2);
-    let mut aire = 0.0;
-    for f in &m.faces {
-        for k in 0..3 {
-            let (a, b) = (f[k], f[(k + 1) % 3]);
-            aretes.insert((a.min(b), a.max(b)));
-        }
-        let [p, q, r] = f.map(|i| m.sommets[i as usize].map(f64::from));
-        let (u, v) = (
-            [q[0] - p[0], q[1] - p[1], q[2] - p[2]],
-            [r[0] - p[0], r[1] - p[1], r[2] - p[2]],
-        );
-        let n = [
-            u[1] * v[2] - u[2] * v[1],
-            u[2] * v[0] - u[0] * v[2],
-            u[0] * v[1] - u[1] * v[0],
-        ];
-        aire += (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt() / 2.0;
-    }
-    let (v, e, f) = (m.sommets.len() as i64, aretes.len() as i64, m.faces.len() as i64);
-    Mesures {
-        sommets: m.sommets.len(),
-        faces: m.faces.len(),
-        euler: v - e + f,
-        aire_mm2: aire,
-    }
-}
-
 /// Couleurs par sommet d'un maillage pour un champ, et bornes de la palette.
 type Coloree = (Arc<Vec<[u8; 3]>>, (f32, f32));
 
@@ -118,7 +81,6 @@ pub struct Surfaces {
     /// Hémisphère des vues prédéfinies.
     gauche: bool,
     fenetre: Option<(f32, f32)>,
-    mesures: BTreeMap<usize, Mesures>,
     /// Couleurs par sommet, par (maillage, champ) : recalculées seulement quand l'un change.
     couleurs: BTreeMap<(usize, usize), Coloree>,
     unies: BTreeMap<[u8; 3], Arc<Vec<[u8; 3]>>>,
@@ -147,7 +109,6 @@ impl Default for Surfaces {
             vue3d: Vue3d::default(),
             gauche: true,
             fenetre: None,
-            mesures: BTreeMap::new(),
             couleurs: BTreeMap::new(),
             unies: BTreeMap::new(),
             controle: None,
@@ -209,7 +170,6 @@ impl Surfaces {
         for (i, ligne) in self.lignes.iter().enumerate() {
             let Some(m) = statuts[i].pret() else { continue };
             let id = Arc::as_ptr(m) as usize;
-            self.mesures.entry(id).or_insert_with(|| mesurer(m));
             contours.push(Surface {
                 maillage: m.clone(),
                 couleur: ligne.couleur,
@@ -406,7 +366,7 @@ impl Surfaces {
         }
     }
 
-    /// `desc-surfqc.tsv` s'il existe ; sinon mesures calculées sur les maillages lus.
+    /// `desc-surfqc.tsv` s'il existe ; sinon la topologie et l'aire calculées par surfoxide à la lecture.
     fn controle_ui(&self, ui: &mut Ui, statuts: &[Statut<Maillage>]) {
         match &self.controle {
             Some(Ok(t)) => {
@@ -429,7 +389,7 @@ impl Surfaces {
             }
             None => {
                 ui.label(
-                    RichText::new("desc-surfqc.tsv absent : mesures calculées ici")
+                    RichText::new("desc-surfqc.tsv absent : topologie et aire calculées par surfoxide")
                         .small()
                         .color(theme::TEXTE_SECONDAIRE),
                 );
@@ -442,22 +402,30 @@ impl Surfaces {
             ui.end_row();
             for (ligne, statut) in self.lignes.iter().zip(statuts) {
                 let Some(m) = statut.pret() else { continue };
-                let Some(me) = self.mesures.get(&(Arc::as_ptr(m) as usize)) else {
+                let (Some(topo), Some(aire)) = (&m.topologie, m.aire_mm2) else {
                     continue;
                 };
                 let hemi = ligne.hemi.unwrap_or("LR");
                 ui.label(RichText::new(format!("{} {hemi}", ligne.libelle)).small());
-                ui.label(RichText::new(me.sommets.to_string()).small().monospace());
-                ui.label(RichText::new(me.faces.to_string()).small().monospace());
-                let euler = RichText::new(me.euler.to_string()).small().monospace();
-                // Une surface corticale fermée de genre 0 a χ = 2.
-                ui.label(if me.euler == 2 {
+                ui.label(RichText::new(topo.n_vertices.to_string()).small().monospace());
+                ui.label(RichText::new(topo.n_faces.to_string()).small().monospace());
+                let euler = RichText::new(topo.euler_characteristic.to_string()).small().monospace();
+                // Surface fermée, orientée, d'un seul tenant et de genre 0 (sphère) : en bleu.
+                let sphere = topo.genus() == Some(0);
+                ui.label(if sphere {
                     euler.color(theme::TERMINE)
                 } else {
                     euler.color(theme::ACCENT)
-                });
+                })
+                .on_hover_text(format!(
+                    "composantes {}, bords {}, arêtes non variétés {}, genre {}",
+                    topo.components,
+                    topo.boundary_edges,
+                    topo.non_manifold_edges,
+                    topo.genus().map_or("—".into(), |g| g.to_string())
+                ));
                 ui.label(
-                    RichText::new(format!("{:.1}", me.aire_mm2 / 100.0).replace('.', ","))
+                    RichText::new(format!("{:.1}", aire / 100.0).replace('.', ","))
                         .small()
                         .monospace(),
                 );
@@ -485,22 +453,4 @@ fn barre_de_couleur(ui: &mut Ui, bas: f32, haut: f32, divergent: bool) {
         ui.add_space((rect.width() - 80.0).max(0.0));
         ui.label(RichText::new(f(haut)).small().monospace());
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn mesures_d_un_tetraedre() {
-        let m = Maillage {
-            sommets: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-            faces: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
-            structure: None,
-        };
-        let me = mesurer(&m);
-        assert_eq!((me.sommets, me.faces, me.euler), (4, 4, 2));
-        // Trois faces rectangles d'aire ½ et une face équilatérale de côté √2 : aire √3/2.
-        assert!((me.aire_mm2 - (1.5 + 3f64.sqrt() / 2.0)).abs() < 1e-9);
-    }
 }

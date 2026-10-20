@@ -9,9 +9,8 @@ Contexte commun à coller en tête de chaque issue :
 
 ## 1. Lecture/écriture GIfTI dans `surfoxide-core`
 
-> **Fait sur la station, non publié** (19 oct. 2026) : crate `surfoxide-io` (sans Burn ; GIfTI, `.vtp`,
-> PLY, STL, FreeSurfer). Pas d'issue à ouvrir : il suffit de pousser `main` depuis la station. guioxide
-> en dépendra alors (épinglé par `rev`) à la place de son lecteur provisoire.
+> **Fait** : crate `surfoxide-io` (sans Burn ; GIfTI, `.vtp`, PLY, STL, FreeSurfer), publié le 20 oct.
+> 2026 (`fd2e059`) ; guioxide l'utilise, épinglé par `rev`.
 
 Le README fixe GIfTI pour les surfaces, mais aucun code ne lit ni n'écrit ce format.
 
@@ -39,7 +38,7 @@ tétraèdres (`VTK_TETRA` = 10), données par point.
 
 ## 3. Sorties en dérivées BIDS
 
-> **En partie fait** : `surfx` écrit déjà `<préfixe>_hemi-{L,R}_{white,pial}.surf.gii`,
+> **Ouverte** : [surfoxide#2](https://github.com/rousseau/surfoxide/issues/2). **En partie fait** : `surfx` écrit déjà `<préfixe>_hemi-{L,R}_{white,pial}.surf.gii`,
 > `_thickness.shape.gii` et `_cortex.shape.gii` (+ un `_report.json` par hémisphère). Restent : le
 > chemin BIDS fixe, `curv`/`sulc`, `desc-surfqc.tsv` (ou décider que `report.json` en tient lieu),
 > `dataset_description.json`.

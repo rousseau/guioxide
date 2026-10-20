@@ -1,4 +1,7 @@
 //! Runs de gyroxide (`docs/donnees.md`, étape 4) : `status.json`, `sequence.tsv`, dossiers `run-<label>`.
+//!
+//! **Provisoire** : à remplacer par les lecteurs de gyroxide (crate sans Burn), demandés dans
+//! [gyroxide#3](https://github.com/rousseau/gyroxide/issues/3).
 
 use std::path::{Path, PathBuf};
 

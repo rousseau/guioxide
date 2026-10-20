@@ -1,4 +1,7 @@
 //! Sorties du SVR lues par guioxide (`docs/donnees.md`, étapes 1 et 2) : qualité et mouvement par coupe.
+//!
+//! **Provisoire** : guioxide ne lit ni ne traite les données lui-même. Ces lecteurs et le calcul du mouvement par
+//! coupe seront retirés dès que `medoxide-core` les expose ([medoxide#6](https://github.com/rousseau/medoxide/issues/6)).
 
 use std::path::Path;
 
