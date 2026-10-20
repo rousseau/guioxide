@@ -10,9 +10,9 @@ fichiers sur les deux**.
 | | medoxide | surfoxide | gyroxide |
 |---|---|---|---|
 | Machine de dev | Mac (Metal) | station Linux RTX 2080 Ti | station Linux RTX 2080 Ti |
-| Toolchain | `stable`, non épinglée → 1.99.1 (branche prête, en attente) | **1.99.1** ([PR #1](https://github.com/rousseau/surfoxide/pull/1)) | **1.99.1** ([PR #1](https://github.com/rousseau/gyroxide/pull/1)) |
+| Toolchain | **1.99.1** ([PR #7](https://github.com/rousseau/medoxide/pull/7)) | **1.99.1** ([PR #1](https://github.com/rousseau/surfoxide/pull/1)) | **1.99.1** ([PR #1](https://github.com/rousseau/gyroxide/pull/1)) |
 | Burn | `0.22.0-pre.4`, `wgpu` | `0.22.0`, features `wgpu` / `cuda` | `0.21.0`, `wgpu` par défaut, `cuda` prévu (non testé) |
-| CI | documentation seulement | fmt, clippy, test, selftest ; ubuntu + macos | fmt, clippy, test ; ubuntu + macos |
+| CI | fmt, clippy, test (tests sur données locales sautés en CI) ; ubuntu + macos | fmt, clippy, test, selftest ; ubuntu + macos | fmt, clippy, test ; ubuntu + macos |
 
 ## Ce qu'il faut harmoniser
 
