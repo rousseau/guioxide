@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use egui::{Color32, RichText, Ui, Vec2};
 use egui_wgpu::RenderState;
-use guioxide_bids::CheminsSession;
+use guioxide_bids::{CheminsSession, Etape};
 use guioxide_data::{Maillage, TableEtiquettes, Tableau};
 use guioxide_geom::{Orientation, PointMonde};
 use guioxide_view::coupe::{Couche, Rendu, Surface, TypeVue, VueCoupe};
@@ -296,6 +296,8 @@ impl Surfaces {
                     self.controle_ui(ui, &statuts);
                     ui.add_space(8.0);
                     panneau_curseur(ui, curseur, &[("volume", svr.pret())]);
+                    ui.add_space(12.0);
+                    base.valider(ui, Etape::Surfaces, chemins);
                 });
             });
         egui::CentralPanel::default().show(ui, |ui| {

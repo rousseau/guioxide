@@ -118,6 +118,13 @@ contrat).
 
 *Fin* : une session va de l'examen à la simulation sans quitter guioxide.
 
+## Validation par l'opérateur
+
+- [x] Panneau « Validation » dans les quatre onglets : avis (validé, à revoir, rejeté), note, opérateur
+      (mémorisé), version de l'outil lue dans `GeneratedBy` ; écriture atomique de
+      `derivatives/guioxide/sub-X/ses-Y/sub-X_ses-Y_desc-qc.json` (voir [donnees.md](donnees.md)).
+- [x] Colonne « Validation » dans le tableau des sessions, mise à jour à l'enregistrement.
+
 ## Plus tard
 
 - Multi-contraste (T1w, …) : sélecteur actif, superposition de contrastes recalés.

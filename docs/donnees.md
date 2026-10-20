@@ -104,8 +104,8 @@ Convention de nommage des surfaces : celle des dérivées BIDS de surface (style
 | `…_hemi-{L,R}_pial.surf.gii` | surface piale (SG/LCS) | proposé |
 | `…_hemi-{L,R}_midthickness.surf.gii` | surface médiane | proposé, optionnel |
 | `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet | proposé |
-| `…_hemi-{L,R}_desc-<…>_tet.vtu` | maillage volumique (entrée de gyroxide) | proposé |
-| `…_desc-surfqc.tsv` | une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` | proposé |
+| `…_hemi-{L,R}_desc-<…>_tet.vtu` | maillage tétraédrique de la session, en mm, champs par nœud : **état initial de gyroxide**, lu par `surfoxide-io` (décidé le 20 oct. 2026) | proposé |
+| `…_desc-surfqc.tsv` | **le** contrôle des maillages, une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` ; `report.json` reste un détail facultatif (décidé le 20 oct. 2026) | proposé |
 
 `hemi-` peut être omis si la surface couvre les deux hémisphères. GIfTI : intent
 `NIFTI_INTENT_POINTSET` en `float32` pour les sommets, `NIFTI_INTENT_TRIANGLE` en `int32` pour
@@ -129,7 +129,7 @@ gyroxide/sub-X/ses-Y/anat/run-<label>/
 | Élément | Contenu | Statut |
 |---|---|---|
 | surfaces de la séquence | GIfTI, **repère monde RAS mm** (transformée inverse de la normalisation appliquée) | **à adapter** : gyroxide écrit aujourd'hui du VTK legacy ASCII, en coordonnées normalisées |
-| `sequence.tsv` | index de la séquence ; `time` dans l'unité du modèle, et `ga_weeks` si une correspondance à l'âge gestationnel est définie | proposé |
+| `sequence.tsv` | index de la séquence ; `time` dans l'unité du modèle ; `ga_weeks` interpolé depuis le paramètre explicite `schedule.ga_weeks` du préréglage (même longueur que `schedule.t`), `n/a` sinon ; `gi` = aire de la surface / aire de son enveloppe convexe ; `energy` = énergie élastique `Ue` (décidé le 20 oct. 2026) | proposé |
 | `status.json` | `{"state": "running" \| "done" \| "failed", "step": n, "total_steps": N, "started": "<ISO 8601>", "updated": "<ISO 8601>", "message": "…"}` | proposé |
 | `config.toml` | paramètres (le format TOML de `gyroxide-model` existe déjà) | **existant** (à écrire dans le run) |
 | état initial | référence au fichier surfoxide utilisé (chemin relatif dans `config.toml`) | proposé |
@@ -147,6 +147,21 @@ non lu par guioxide.
 | 4 · Simulation | au moins un run avec `status.json` `done` | un run `running` |
 
 Un fichier présent mais illisible marque l'étape en erreur, avec le message de lecture.
+
+## Validation par l'opérateur — guioxide
+
+guioxide n'écrit que ses propres annotations, jamais dans les dérivées des outils.
+
+```
+<sortie>/derivatives/guioxide/
+  dataset_description.json            GeneratedBy : guioxide et sa version
+  sub-X/ses-Y/sub-X_ses-Y_desc-qc.json
+```
+
+`desc-qc.json` : une entrée par étape (`examen`, `reconstruction`, `surfaces`, `simulation`), chacune
+`{"etat": "valide" | "a_revoir" | "rejete", "note": "…", "operateur": "…", "date": "<ISO 8601>",
+"outil": "<nom version>"}`, `outil` étant lu dans le `GeneratedBy` de la dérivée validée. Une étape
+absente n'est pas encore évaluée. (Décidé le 20 oct. 2026.)
 
 ## Évolutions prévues
 

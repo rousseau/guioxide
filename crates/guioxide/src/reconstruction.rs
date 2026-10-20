@@ -6,15 +6,13 @@ use std::sync::Arc;
 
 use egui::{RichText, Ui};
 use egui_plot::{Legend, Line, Plot, PlotPoints, Points, VLine};
-use guioxide_bids::{CheminsSession, EtatEtape, Session};
+use guioxide_bids::{CheminsSession, Etape, EtatEtape, Session};
 use guioxide_data::{PointMouvement, TableEtiquettes, mouvement_par_coupe};
 use guioxide_geom::{PointMonde, Volume};
 use guioxide_view::coupe::{Couche, Rendu, Triplanaire};
 use guioxide_view::{pastille_etat, theme};
 
-use crate::etapes::{
-    Base, DonneesSession, Fichier, Statut, bouton_valider, ligne_couche, message_central, nom_court, panneau_curseur,
-};
+use crate::etapes::{Base, DonneesSession, Fichier, Statut, ligne_couche, message_central, nom_court, panneau_curseur};
 
 /// Opacité initiale de la segmentation.
 const OPACITE: f32 = 0.45;
@@ -250,7 +248,7 @@ impl Reconstruction {
                     ui.add_space(8.0);
                     panneau_curseur(ui, curseur, &[("volume", svr.pret()), ("segmentation", seg.pret())]);
                     ui.add_space(12.0);
-                    bouton_valider(ui);
+                    base.valider(ui, Etape::Reconstruction, chemins);
                 });
             });
         egui::CentralPanel::default().show(ui, |ui| {

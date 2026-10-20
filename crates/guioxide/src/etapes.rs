@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use egui::{RichText, Ui};
-use guioxide_bids::{CheminsSession, Session};
+use std::collections::BTreeMap;
+
+use guioxide_bids::{Avis, CheminsSession, Etape, Evaluation, Qc, Session, cle_qc, lister_derivees, maintenant_iso};
 use guioxide_data::{
     Chargeur, ErreurDonnees, Etat, Maillage, MouvementCoupe, QualiteCoupe, VolumeLu, lire_geometrie, lire_mouvement,
     lire_qualite,
@@ -124,6 +126,29 @@ pub struct Base {
     surfaces: Chargeur<Maillage>,
     champs: Chargeur<Vec<f32>>,
     curseur_place: bool,
+    /// Validation de la session, lue au premier affichage.
+    validation: Option<Validation>,
+    /// Nom de l'opérateur, mémorisé dans les préférences.
+    pub operateur: String,
+}
+
+/// Validation de la session par l'opérateur (`desc-qc.json`) et brouillons d'avis par étape.
+pub struct Validation {
+    qc: Qc,
+    erreur: Option<String>,
+    brouillons: BTreeMap<&'static str, (Avis, String)>,
+    /// Vrai après un enregistrement, jusqu'à ce que l'application relise l'état (tableau des sessions).
+    modifiee: bool,
+}
+
+/// Dérivée dont l'étape valide les sorties.
+fn pipeline(etape: Etape) -> &'static str {
+    match etape {
+        Etape::Examen => "medx-fetalbet",
+        Etape::Reconstruction => "medx-svr",
+        Etape::Surfaces => "surfx-surfaces",
+        Etape::Simulation => "gyroxide",
+    }
 }
 
 fn statut<T: Send + Sync + 'static>(chargeur: &mut Chargeur<T>, chemin: &Path) -> Statut<T> {
@@ -148,6 +173,100 @@ impl Base {
 
     pub fn champ(&mut self, chemin: &Path) -> Statut<Vec<f32>> {
         statut(&mut self.champs, chemin)
+    }
+
+    /// Panneau de validation d'une étape : avis enregistré, nouvel avis, note, enregistrement dans `desc-qc.json`.
+    pub fn valider(&mut self, ui: &mut Ui, etape: Etape, chemins: &CheminsSession) {
+        let v = self.validation.get_or_insert_with(|| match Qc::lire(&chemins.qc()) {
+            Ok(qc) => Validation {
+                qc,
+                erreur: None,
+                brouillons: BTreeMap::new(),
+                modifiee: false,
+            },
+            Err(e) => Validation {
+                qc: Qc::default(),
+                erreur: Some(e.to_string()),
+                brouillons: BTreeMap::new(),
+                modifiee: false,
+            },
+        });
+        let cle = cle_qc(etape);
+        ui.strong("Validation");
+        match v.qc.evaluation(etape) {
+            Some(e) => {
+                let couleur = match e.avis {
+                    Avis::Valide => theme::TERMINE,
+                    Avis::ARevoir => theme::ACCENT,
+                    Avis::Rejete => theme::ERREUR,
+                };
+                let date = e.date.replace('T', " ").trim_end_matches('Z').to_owned();
+                ui.label(RichText::new(format!("{} par {} le {date}", e.avis.libelle(), e.operateur)).color(couleur));
+                if let Some(o) = &e.outil {
+                    ui.label(RichText::new(o).small().color(theme::TEXTE_SECONDAIRE));
+                }
+                if !e.note.is_empty() {
+                    ui.label(RichText::new(format!("« {} »", e.note)).italics());
+                }
+            }
+            None => {
+                ui.label(RichText::new("pas encore évaluée").color(theme::TEXTE_SECONDAIRE));
+            }
+        }
+        let (avis, note) = v.brouillons.entry(cle).or_insert_with(|| match v.qc.evaluation(etape) {
+            Some(e) => (e.avis, e.note.clone()),
+            None => (Avis::Valide, String::new()),
+        });
+        ui.horizontal(|ui| {
+            for a in Avis::TOUS {
+                ui.radio_value(avis, a, a.libelle());
+            }
+        });
+        ui.add(
+            egui::TextEdit::multiline(note)
+                .hint_text("note de l'opérateur")
+                .desired_rows(2)
+                .desired_width(f32::INFINITY),
+        );
+        ui.horizontal(|ui| {
+            ui.label("Opérateur");
+            ui.add(egui::TextEdit::singleline(&mut self.operateur).desired_width(80.0));
+            let pret = !self.operateur.trim().is_empty();
+            let bouton = ui.add_enabled(pret, egui::Button::new("Enregistrer →"));
+            let bouton = if pret {
+                bouton
+            } else {
+                bouton.on_disabled_hover_text("indiquer l'opérateur")
+            };
+            if bouton.clicked() {
+                let outil = lister_derivees(chemins.derivees())
+                    .ok()
+                    .and_then(|d| d.into_iter().find(|d| d.pipeline == pipeline(etape)))
+                    .and_then(|d| d.generateur);
+                let evaluation = Evaluation {
+                    avis: *avis,
+                    note: note.trim().to_owned(),
+                    operateur: self.operateur.trim().to_owned(),
+                    date: maintenant_iso(),
+                    outil,
+                };
+                let mut qc = v.qc.clone();
+                qc.etapes.insert(cle.to_owned(), evaluation);
+                match qc.ecrire(&chemins.qc(), &chemins.racine_guioxide()) {
+                    Ok(()) => (v.qc, v.erreur, v.modifiee) = (qc, None, true),
+                    Err(e) => v.erreur = Some(e.to_string()),
+                }
+            }
+        });
+        if let Some(e) = &v.erreur {
+            ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));
+        }
+    }
+
+    /// Validation enregistrée depuis le dernier appel, pour mettre à jour le tableau des sessions.
+    pub fn validation_modifiee(&mut self) -> Option<Qc> {
+        let v = self.validation.as_mut()?;
+        std::mem::take(&mut v.modifiee).then(|| v.qc.clone())
     }
 
     /// Place le curseur au centre du premier volume affiché d'une session.
@@ -182,6 +301,8 @@ impl Visualisation {
                 surfaces: Chargeur::surfaces(CACHE / 4, reveil(ctx)),
                 champs: Chargeur::champs(CACHE / 16, reveil(ctx)),
                 curseur_place: false,
+                validation: None,
+                operateur: String::new(),
             },
             session: None,
             donnees: None,
@@ -198,12 +319,21 @@ impl Visualisation {
         if self.session != cle {
             self.session = cle;
             self.base.curseur_place = false;
+            self.base.validation = None;
             self.donnees = None;
             self.examen = Examen::default();
             self.reconstruction = Reconstruction::default();
             self.surfaces = Surfaces::default();
             self.simulation = Simulation::default();
         }
+    }
+
+    pub fn operateur(&mut self) -> &mut String {
+        &mut self.base.operateur
+    }
+
+    pub fn validation_modifiee(&mut self) -> Option<guioxide_bids::Qc> {
+        self.base.validation_modifiee()
     }
 
     pub fn examen(&mut self, ui: &mut Ui, session: &Session, chemins: &CheminsSession, curseur: &mut PointMonde) {
@@ -344,12 +474,6 @@ pub fn message_central(ui: &mut Ui, couches: &[(&str, &Statut)]) {
         };
         ui.label(RichText::new(texte).color(theme::TEXTE_SECONDAIRE));
     });
-}
-
-/// Bouton de validation : l'enregistrement d'une validation n'est pas encore dans le contrat.
-pub fn bouton_valider(ui: &mut Ui) {
-    ui.add_enabled(false, egui::Button::new("Valider →"))
-        .on_disabled_hover_text("Où enregistrer la validation et la note de l'opérateur : à définir dans le contrat");
 }
 
 /// Nombre à deux décimales, virgule décimale.

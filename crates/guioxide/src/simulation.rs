@@ -8,7 +8,7 @@ use std::time::{Duration, Instant, SystemTime};
 use egui::{RichText, Ui, Vec2};
 use egui_plot::{Line, Plot, PlotPoints, VLine};
 use egui_wgpu::RenderState;
-use guioxide_bids::{CheminsSession, JeuBids};
+use guioxide_bids::{CheminsSession, Etape, JeuBids};
 use guioxide_data::{EtatRun, Maillage, PasSequence, lire_etat_run, lire_sequence, lister_runs};
 use guioxide_geom::PointMonde;
 use guioxide_view::theme;
@@ -251,7 +251,11 @@ impl Simulation {
             .resizable(true)
             .default_size(320.0)
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| courbes(ui, run, &pas, self.index));
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    courbes(ui, run, &pas, self.index);
+                    ui.add_space(12.0);
+                    base.valider(ui, Etape::Simulation, chemins);
+                });
             });
         egui::CentralPanel::default().show(ui, |ui| {
             let zone = ui.available_rect_before_wrap();

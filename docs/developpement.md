@@ -68,8 +68,9 @@ steps:
 C'est ce qui permet de développer guioxide sans relancer toute la chaîne, et de vérifier que
 le contrat de données tient.
 
-- Un **petit jeu BIDS sans données de patiente** : fantôme numérique ou données publiques
-  dont la licence permet la redistribution. 1 sujet, 1 session, 3 piles T2w.
+- Un **petit jeu BIDS sans données de patiente** : **fantôme numérique** (décidé le 20 oct. 2026),
+  piles simulées à partir d'un atlas fœtal public dont la licence permet la redistribution, avec
+  mouvement connu. 1 sujet, 1 session, 3 piles T2w.
 - Il contient **les sorties de toutes les étapes** conformes au contrat : masques, volume
   SVR, `motion.tsv`, `slicequality.tsv`, segmentation, surfaces GIfTI, un court run gyroxide.
 - Hébergé comme les poids de fetalbet (Hugging Face), avec un script de téléchargement et

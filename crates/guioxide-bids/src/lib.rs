@@ -6,6 +6,7 @@
 mod avancement;
 mod chemins;
 mod jeu;
+mod qc;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ pub use avancement::{etat_etape, etats_session};
 pub use chemins::CheminsSession;
 pub use guioxide_data::Tableau;
 pub use jeu::{COLONNE_AGE, Derivee, JeuBids, Pile, Session, Sujet, indexer, lister_derivees, trouver_racine};
+pub use qc::{Avis, Evaluation, Qc, cle as cle_qc, iso_depuis_secondes, maintenant_iso};
 
 /// Erreur de lecture d'un jeu : toujours avec le chemin en cause.
 #[derive(Debug, thiserror::Error)]

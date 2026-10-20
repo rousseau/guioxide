@@ -23,6 +23,9 @@
    guioxide : la navigation (indexation BIDS, état d'avancement), l'échantillonnage pour l'affichage, le
    rendu. Les lecteurs encore écrits dans guioxide sont marqués **provisoires**, avec leur issue
    (medoxide#6, gyroxide#3).
+   Seule écriture de guioxide : ses propres annotations de validation
+   (`derivatives/guioxide/…/desc-qc.json`, voir [donnees.md](donnees.md)), jamais dans les dérivées
+   des outils.
 5. **Toute la logique testable hors de l'interface.** L'indexation BIDS, la lecture des
    données et la géométrie sont dans des crates sans dépendance graphique, testés en CI.
 

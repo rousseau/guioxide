@@ -12,6 +12,8 @@ use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Rece
 
 /// Clé des jeux récents dans le stockage d'eframe.
 const CLE_RECENTS: &str = "recents";
+/// Clé du nom de l'opérateur (validation).
+const CLE_OPERATEUR: &str = "operateur";
 
 /// Un onglet : l'écran d'ouverture ou une étape de la chaîne.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,6 +59,9 @@ impl Application {
             visualisation: Visualisation::new(&cc.egui_ctx),
             rendu: cc.wgpu_render_state.clone(),
         };
+        // Opérateur : celui de la dernière validation, sinon le compte de la session.
+        let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
+        *app.visualisation.operateur() = operateur.or_else(|| std::env::var("USER").ok()).unwrap_or_default();
         if let Some(chemin) = jeu {
             app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
         }
@@ -324,6 +329,16 @@ impl eframe::App for Application {
             Onglet::Ouverture => self.ecran_ouverture(ui, &mut actions),
             Onglet::Etape(etape) => self.ecran_etape(ui, etape),
         }
+        // Une validation enregistrée met à jour la ligne du tableau des sessions.
+        if let Some(qc) = self.visualisation.validation_modifiee()
+            && let Some(ligne) = self
+                .ouvert
+                .as_mut()
+                .zip(self.selection)
+                .and_then(|(o, i)| o.lignes.get_mut(i))
+        {
+            ligne.qc = qc;
+        }
         for action in actions {
             self.executer(&ctx, action);
         }
@@ -331,5 +346,6 @@ impl eframe::App for Application {
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, CLE_RECENTS, &self.recents);
+        eframe::set_value(storage, CLE_OPERATEUR, self.visualisation.operateur());
     }
 }

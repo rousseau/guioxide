@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use egui::{Color32, RichText, Sense, Stroke, TextureHandle, TextureOptions, Ui, Vec2};
 use egui_plot::{Bar, BarChart, Plot, VLine};
-use guioxide_bids::{CheminsSession, Session};
+use guioxide_bids::{CheminsSession, Etape, Session};
 use guioxide_data::QualiteCoupe;
 use guioxide_geom::{Orientation, PointMonde, Volume};
 use guioxide_view::coupe::{Couche, Rendu, TypeVue, VueCoupe, vignette};
 use guioxide_view::theme;
 
 use crate::etapes::{
-    Base, CONTOUR, DonneesSession, bouton_valider, decimal2, ligne_couche, message_central, nom_court, panneau_curseur,
+    Base, CONTOUR, DonneesSession, decimal2, ligne_couche, message_central, nom_court, panneau_curseur,
 };
 
 /// Part de coupes conservées sous laquelle une pile est signalée « à revoir ».
@@ -156,7 +156,7 @@ impl Examen {
                     ui.add_space(8.0);
                     panneau_curseur(ui, curseur, &[("pile", image.pret()), ("masque", masque.pret())]);
                     ui.add_space(12.0);
-                    bouton_valider(ui);
+                    base.valider(ui, Etape::Examen, chemins);
                 });
             });
         egui::CentralPanel::default().show(ui, |ui| {

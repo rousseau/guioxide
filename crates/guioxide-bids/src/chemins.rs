@@ -21,6 +21,11 @@ impl CheminsSession {
         }
     }
 
+    /// Dossier `derivatives/` de la sortie choisie.
+    pub fn derivees(&self) -> &Path {
+        &self.derivees
+    }
+
     /// Préfixe des noms de fichiers : `sub-X_ses-Y` ou `sub-X`.
     pub fn prefixe(&self) -> &str {
         &self.prefixe
@@ -97,6 +102,18 @@ impl CheminsSession {
     pub fn controle_surfaces(&self) -> PathBuf {
         self.anat("surfx-surfaces")
             .join(format!("{}_desc-surfqc.tsv", self.prefixe))
+    }
+
+    /// Dossier `derivatives/guioxide` : les annotations de guioxide.
+    pub fn racine_guioxide(&self) -> PathBuf {
+        self.derivees.join("guioxide")
+    }
+
+    /// Validation par l'opérateur de la session.
+    pub fn qc(&self) -> PathBuf {
+        self.racine_guioxide()
+            .join(&self.dossier)
+            .join(format!("{}_desc-qc.json", self.prefixe))
     }
 
     /// Dossier des runs gyroxide (`run-*`).

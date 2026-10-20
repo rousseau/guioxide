@@ -5,7 +5,7 @@ use std::sync::mpsc;
 
 use egui::{Align, Layout, RichText, Sense, Ui};
 use egui_extras::{Column, TableBuilder};
-use guioxide_bids::{EtatEtape, JeuBids, etats_session};
+use guioxide_bids::{Avis, CheminsSession, Etape, EtatEtape, JeuBids, Qc, etats_session};
 use guioxide_view::{pastille_etat, theme};
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,8 @@ pub struct Ligne {
     pub sujet: usize,
     pub session: usize,
     pub etats: [EtatEtape; 4],
+    /// Validation par l'opérateur (`derivatives/guioxide/…/desc-qc.json`) ; illisible → aucune.
+    pub qc: Qc,
 }
 
 impl JeuOuvert {
@@ -46,10 +48,12 @@ impl JeuOuvert {
         let mut lignes = Vec::new();
         for (i, sujet) in jeu.sujets.iter().enumerate() {
             for (j, session) in sujet.sessions.iter().enumerate() {
+                let qc = Qc::lire(&CheminsSession::new(&derivees, sujet, session).qc()).unwrap_or_default();
                 lignes.push(Ligne {
                     sujet: i,
                     session: j,
                     etats: etats_session(&derivees, sujet, session),
+                    qc,
                 });
             }
         }
@@ -406,6 +410,7 @@ impl EcranOuverture {
             .column(Column::initial(80.0))
             .column(Column::initial(120.0))
             .columns(Column::exact(32.0), 4)
+            .column(Column::initial(110.0))
             .column(Column::remainder())
             .header(hauteur, |mut entete| {
                 entete.col(|ui| self.entete_triable(ui, "Session", Tri::Session));
@@ -418,6 +423,10 @@ impl EcranOuverture {
                         ui.strong(n.to_string());
                     });
                 }
+                entete.col(|ui| {
+                    ui.strong("Validation")
+                        .on_hover_text("avis de l'opérateur, étapes 1 à 4");
+                });
                 entete.col(|_| {});
             })
             .body(|corps| {
@@ -438,6 +447,7 @@ impl EcranOuverture {
                     for etat in &ligne.etats {
                         rangee.col(|ui| pastille_etat(ui, etat));
                     }
+                    rangee.col(|ui| avis_session(ui, &ligne.qc));
                     rangee.col(|_| {});
                     let reponse = rangee.response();
                     if reponse.clicked() {
@@ -467,6 +477,37 @@ impl EcranOuverture {
             }
         }
     }
+}
+
+/// Avis de l'opérateur pour les quatre étapes : ✓ validé, ? à revoir, ✗ rejeté, · non évalué.
+fn avis_session(ui: &mut Ui, qc: &Qc) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        for etape in Etape::TOUTES {
+            let (signe, couleur, detail) = match qc.evaluation(etape) {
+                Some(e) => {
+                    let (s, c) = match e.avis {
+                        Avis::Valide => ("✓", theme::TERMINE),
+                        Avis::ARevoir => ("?", theme::ACCENT),
+                        Avis::Rejete => ("✗", theme::ERREUR),
+                    };
+                    let note = if e.note.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" : {}", e.note)
+                    };
+                    (
+                        s,
+                        c,
+                        format!("{etape} : {} par {}{note}", e.avis.libelle(), e.operateur),
+                    )
+                }
+                None => ("·", theme::TEXTE_SECONDAIRE, format!("{etape} : non évaluée")),
+            };
+            ui.label(RichText::new(signe).monospace().color(couleur))
+                .on_hover_text(detail);
+        }
+    });
 }
 
 /// Premier dossier (ou fichier) déposé dans la fenêtre pendant cette image.
