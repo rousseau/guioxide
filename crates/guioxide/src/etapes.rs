@@ -126,6 +126,8 @@ pub struct Base {
     surfaces: Chargeur<Maillage>,
     champs: Chargeur<Vec<f32>>,
     curseur_place: bool,
+    /// Vrai si une lecture était en cours pendant l'image (capture automatique : attendre que tout soit affiché).
+    occupe: bool,
     /// Validation de la session, lue au premier affichage.
     validation: Option<Validation>,
     /// Nom de l'opérateur, mémorisé dans les préférences.
@@ -164,15 +166,21 @@ fn statut<T: Send + Sync + 'static>(chargeur: &mut Chargeur<T>, chemin: &Path) -
 
 impl Base {
     pub fn statut(&mut self, chemin: &Path) -> Statut {
-        statut(&mut self.volumes, chemin)
+        let s = statut(&mut self.volumes, chemin);
+        self.occupe |= matches!(s, Statut::EnCours);
+        s
     }
 
     pub fn surface(&mut self, chemin: &Path) -> Statut<Maillage> {
-        statut(&mut self.surfaces, chemin)
+        let s = statut(&mut self.surfaces, chemin);
+        self.occupe |= matches!(s, Statut::EnCours);
+        s
     }
 
     pub fn champ(&mut self, chemin: &Path) -> Statut<Vec<f32>> {
-        statut(&mut self.champs, chemin)
+        let s = statut(&mut self.champs, chemin);
+        self.occupe |= matches!(s, Statut::EnCours);
+        s
     }
 
     /// Panneau de validation d'une étape : avis enregistré, nouvel avis, note, enregistrement dans `desc-qc.json`.
@@ -301,6 +309,7 @@ impl Visualisation {
                 surfaces: Chargeur::surfaces(CACHE / 4, reveil(ctx)),
                 champs: Chargeur::champs(CACHE / 16, reveil(ctx)),
                 curseur_place: false,
+                occupe: false,
                 validation: None,
                 operateur: String::new(),
             },
@@ -326,6 +335,11 @@ impl Visualisation {
             self.surfaces = Surfaces::default();
             self.simulation = Simulation::default();
         }
+    }
+
+    /// Vrai si une lecture était en cours depuis le dernier appel ; remet l'indicateur à zéro.
+    pub fn occupe(&mut self) -> bool {
+        std::mem::take(&mut self.base.occupe)
     }
 
     pub fn operateur(&mut self) -> &mut String {

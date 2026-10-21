@@ -1494,9 +1494,11 @@ dependencies = [
  "guioxide-data",
  "guioxide-geom",
  "guioxide-view",
+ "png",
  "rfd",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

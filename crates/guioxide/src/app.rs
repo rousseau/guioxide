@@ -3,10 +3,11 @@
 use std::path::PathBuf;
 
 use egui::{Align, FontFamily, FontId, Key, KeyboardShortcut, Layout, Modifiers, RichText, Ui};
-use guioxide_bids::{CheminsSession, Etape, EtatEtape};
+use guioxide_bids::{CheminsSession, Etape, EtatEtape, maintenant_iso};
 use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
 
+use crate::capture::Capture;
 use crate::etapes::Visualisation;
 use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Recent, Sortie};
 
@@ -38,10 +39,33 @@ pub struct Application {
     visualisation: Visualisation,
     /// Contexte wgpu d'eframe, pour la vue 3D.
     rendu: Option<egui_wgpu::RenderState>,
+    /// Options de la ligne de commande appliquées à l'ouverture du jeu (`--onglet`, `--session`).
+    onglet_initial: Option<Etape>,
+    session_initiale: Option<String>,
+    capture: Option<Capture>,
+    /// Message de la barre de pied (capture enregistrée…).
+    message: Option<String>,
+}
+
+/// Options de la ligne de commande.
+#[derive(Default)]
+pub struct Options {
+    pub jeu: Option<PathBuf>,
+    pub onglet: Option<Etape>,
+    /// Texte contenu dans le libellé de la session à ouvrir (`sub-01 / ses-02`).
+    pub session: Option<String>,
+    /// Capturer la fenêtre dans ce fichier une fois les données affichées, puis quitter.
+    pub capture: Option<PathBuf>,
 }
 
 impl Application {
-    pub fn new(cc: &eframe::CreationContext<'_>, jeu: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
+        let Options {
+            jeu,
+            onglet,
+            session,
+            capture,
+        } = options;
         let recents = cc
             .storage
             .and_then(|s| eframe::get_value(s, CLE_RECENTS))
@@ -58,6 +82,10 @@ impl Application {
             curseur: PointMonde::default(),
             visualisation: Visualisation::new(&cc.egui_ctx),
             rendu: cc.wgpu_render_state.clone(),
+            onglet_initial: onglet,
+            session_initiale: session,
+            capture: capture.map(|c| Capture::new(c, true, true)),
+            message: None,
         };
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
@@ -90,8 +118,12 @@ impl Application {
             Ok(ouvert) => {
                 let meme_jeu = self.ouvert.as_ref().is_some_and(|o| o.jeu.racine == ouvert.jeu.racine);
                 if !meme_jeu {
-                    self.selection = (ouvert.lignes.len() == 1).then_some(0);
-                    self.onglet = Onglet::Ouverture;
+                    self.selection = match self.session_initiale.take() {
+                        Some(texte) => ouvert.lignes.iter().position(|l| ouvert.libelle(l).contains(&texte)),
+                        None if self.onglet_initial.is_some() => (!ouvert.lignes.is_empty()).then_some(0),
+                        None => (ouvert.lignes.len() == 1).then_some(0),
+                    };
+                    self.onglet = self.onglet_initial.take().map_or(Onglet::Ouverture, Onglet::Etape);
                 }
                 let chemin = ouverture::chemin_recent(&ouvert.jeu).to_path_buf();
                 ouverture::memoriser(
@@ -137,6 +169,17 @@ impl Application {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O))) {
             self.choisir_dossier(ctx);
+        }
+        let capturer = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+        if self.capture.is_none()
+            && ctx.input_mut(|i| i.consume_shortcut(&capturer))
+            && let Some(chemin) = rfd::FileDialog::new()
+                .set_title("Enregistrer une capture de la fenêtre")
+                .set_file_name(format!("guioxide-{}.png", maintenant_iso().replace(':', "-")))
+                .add_filter("PNG", &["png"])
+                .save_file()
+        {
+            self.capture = Some(Capture::new(chemin, false, false));
         }
         if ctx.memory(|m| m.focused().is_some()) {
             return; // un champ de saisie a le focus : les chiffres lui reviennent
@@ -225,7 +268,34 @@ impl Application {
                 ui.spinner();
                 ui.label(RichText::new(&chargement.description).color(theme::TEXTE_SECONDAIRE));
             }
+            if let Some(m) = &self.message {
+                ui.separator();
+                ui.label(RichText::new(m).color(theme::TEXTE_SECONDAIRE));
+            }
         });
+    }
+
+    /// Capture en cours : la demande quand c'est le moment, puis en rend compte (et ferme pour `--capture`).
+    fn suivre_capture(&mut self, ctx: &egui::Context) {
+        let occupe = self.visualisation.occupe() || self.chargement.is_some();
+        let Some(capture) = &mut self.capture else { return };
+        capture.suivre(ctx, occupe);
+        let Some(resultat) = capture.resultat() else { return };
+        let quitter = capture.quitter;
+        self.capture = None;
+        match resultat {
+            Ok(chemin) => {
+                self.message = Some(format!("capture : {}", chemin.display()));
+                eprintln!("capture enregistrée : {}", chemin.display());
+            }
+            Err(e) => {
+                self.message = Some(format!("⚠ capture : {e}"));
+                eprintln!("capture impossible : {e}");
+            }
+        }
+        if quitter {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 
     fn ecran_ouverture(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) {
@@ -342,6 +412,7 @@ impl eframe::App for Application {
         for action in actions {
             self.executer(&ctx, action);
         }
+        self.suivre_capture(&ctx);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
