@@ -101,7 +101,7 @@ Convention de nommage des surfaces : celle des dérivées BIDS de surface (style
 | `surfx-surfaces/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_white.surf.gii` | surface blanche (SB/SG) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
 | `…_hemi-{L,R}_pial.surf.gii` | surface piale (SG/LCS) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
 | `…_hemi-{L,R}_midthickness.surf.gii` | surface médiane | proposé, optionnel |
-| `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet ; `sulc` = profondeur DPF* (méthode dans les métadonnées GIfTI) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
+| `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet ; `sulc` = profondeur DPF* (méthode dans les métadonnées GIfTI) ; signe de `curv` et `sulc` : **crêtes gyrales positives, fonds de sillons négatifs** (convention de l'atlas dHCP, opposée à FreeSurfer), écrit dans la métadonnée GIfTI `SignConvention` (décidé le 22 oct. 2026) | **existant** (surfoxide `dc02bf7`, `surfx run --bids` ; signe documenté `790e75b`) |
 | `…_desc-surfqc.tsv` | **le** contrôle des maillages, une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` ; `report.json` reste un détail facultatif (décidé le 20 oct. 2026) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`), lu par `surfoxide_io::surfqc` |
 
 `hemi-` peut être omis si la surface couvre les deux hémisphères. GIfTI : intent
