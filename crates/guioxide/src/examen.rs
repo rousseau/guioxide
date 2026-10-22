@@ -201,6 +201,15 @@ impl Examen {
             .striped(true)
             .spacing([8.0, 4.0])
             .show(ui, |ui| {
+                let entete = |ui: &mut Ui, t: &str| ui.label(RichText::new(t).small().color(theme::TEXTE_SECONDAIRE));
+                entete(ui, "pile");
+                entete(ui, "plan scanner").on_hover_text(
+                    "Plan des coupes dans le repère du scanner, déduit de l'affine : en IRM fœtale, ce n'est pas \
+                     le plan anatomique du fœtus que désigne le nom de la séquence (ax, cor, sag).",
+                );
+                entete(ui, "coupes");
+                entete(ui, "conservées");
+                ui.end_row();
                 for (i, p) in session.piles.iter().enumerate() {
                     let geometrie = donnees.geometries.get(&p.nom);
                     let reponse =
@@ -213,7 +222,8 @@ impl Examen {
                     match geometrie {
                         Some(Ok((dims, affine))) => {
                             let t = affine.tailles();
-                            ui.label(Orientation::des_coupes(affine).nom());
+                            ui.label(Orientation::des_coupes(affine).nom())
+                                .on_hover_text("plan dans le repère du scanner, pas le plan anatomique du fœtus");
                             ui.label(RichText::new(format!("{} coupes", dims[2])).color(theme::TEXTE_SECONDAIRE))
                                 .on_hover_text(format!(
                                     "{} × {} × {} mm",

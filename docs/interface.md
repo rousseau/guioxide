@@ -54,8 +54,8 @@ foi pour la disposition.
 
 ## 1 · Examen
 
-- **Gauche** : piles `T2w` de la session (une ligne par fichier) : orientation déduite de
-  l'affine (axiale / coronale / sagittale), nombre de coupes, résolution, score qualité
+- **Gauche** : piles `T2w` de la session (une ligne par fichier) : plan des coupes **dans le repère
+  du scanner**, déduit de l'affine (axial / coronal / sagittal ; pas le plan anatomique du fœtus), nombre de coupes, résolution, score qualité
   (part de coupes conservées), badge si à revoir.
 - **Centre** : la pile sélectionnée dans son plan natif ; curseur de coupe ; bande de
   vignettes des coupes, coupes signalées encadrées ; modes « pile », « mosaïque »,
