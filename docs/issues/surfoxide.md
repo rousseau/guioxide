@@ -1,5 +1,9 @@
 # Issues à ouvrir sur surfoxide
 
+> **État au 22 oct. 2026** : #1 (GIfTI, `surfoxide-io`) et #2 (sorties BIDS, `curv`/`sulc`, `desc-surfqc.tsv`,
+> `surfoxide_io::surfqc`) faites. #3 (maillage `.vtu`) **transférée à gyroxide** : la tétraédrisation n'est
+> pas dans surfoxide.
+
 Contexte commun à coller en tête de chaque issue :
 
 > guioxide (https://github.com/rousseau/guioxide) visualise les sorties de la chaîne

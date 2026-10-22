@@ -17,8 +17,8 @@ guioxide-view = { path = "crates/guioxide-view" }
 
 # Crates « cœur » sans Burn, épinglés par rev (docs/architecture.md).
 medoxide-core = { git = "https://github.com/rousseau/medoxide", rev = "f2fbcb68be1d6e12b8ad4c1e0a34c8f1dc6f942f" }
-surfoxide-core = { git = "https://github.com/rousseau/surfoxide", rev = "fd2e0590f35b31f8b6dc7903c6e89995769fccee" }
-surfoxide-io = { git = "https://github.com/rousseau/surfoxide", rev = "fd2e0590f35b31f8b6dc7903c6e89995769fccee" }
+surfoxide-core = { git = "https://github.com/rousseau/surfoxide", rev = "dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3" }
+surfoxide-io = { git = "https://github.com/rousseau/surfoxide", rev = "dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3" }
 
 eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"

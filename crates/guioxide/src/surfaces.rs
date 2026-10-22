@@ -7,7 +7,7 @@ use std::sync::Arc;
 use egui::{Color32, RichText, Ui, Vec2};
 use egui_wgpu::RenderState;
 use guioxide_bids::{CheminsSession, Etape};
-use guioxide_data::{Maillage, TableEtiquettes, Tableau};
+use guioxide_data::{Maillage, SurfQc, TableEtiquettes, lire_controle_surfaces};
 use guioxide_geom::{Orientation, PointMonde};
 use guioxide_view::coupe::{Couche, Rendu, Surface, TypeVue, VueCoupe};
 use guioxide_view::palettes::{colorer, divergente, sequentielle};
@@ -84,7 +84,7 @@ pub struct Surfaces {
     /// Couleurs par sommet, par (maillage, champ) : recalculées seulement quand l'un change.
     couleurs: BTreeMap<(usize, usize), Coloree>,
     unies: BTreeMap<[u8; 3], Arc<Vec<[u8; 3]>>>,
-    controle: Option<Result<Tableau, String>>,
+    controle: Option<Result<Vec<SurfQc>, String>>,
 }
 
 impl Default for Surfaces {
@@ -160,7 +160,9 @@ impl Surfaces {
         }
         if self.controle.is_none() {
             let c = chemins.controle_surfaces();
-            self.controle = c.exists().then(|| Tableau::lire(&c).map_err(|e| e.to_string()));
+            self.controle = c
+                .exists()
+                .then(|| lire_controle_surfaces(&c).map_err(|e| e.to_string()));
         }
 
         // Objets : contours 2D et maillages 3D colorés.
@@ -371,16 +373,43 @@ impl Surfaces {
     /// `desc-surfqc.tsv` s'il existe ; sinon la topologie et l'aire calculées par surfoxide à la lecture.
     fn controle_ui(&self, ui: &mut Ui, statuts: &[Statut<Maillage>]) {
         match &self.controle {
-            Some(Ok(t)) => {
-                egui::Grid::new("surfqc").striped(true).show(ui, |ui| {
-                    for c in &t.colonnes {
-                        ui.label(RichText::new(c).small().strong());
+            Some(Ok(lignes)) => {
+                ui.label(
+                    RichText::new("desc-surfqc.tsv (surfx)")
+                        .small()
+                        .color(theme::TEXTE_SECONDAIRE),
+                );
+                let petit = |v: String| RichText::new(v).small().monospace();
+                let manque = || "—".to_owned();
+                egui::Grid::new("surfqc").striped(true).num_columns(7).show(ui, |ui| {
+                    for t in ["surface", "sommets", "χ", "auto-int.", "aire (cm²)", "GI", "dist. (mm)"] {
+                        ui.label(RichText::new(t).small().strong());
                     }
                     ui.end_row();
-                    for ligne in &t.lignes {
-                        for v in ligne {
-                            ui.label(RichText::new(v).small().monospace());
-                        }
+                    for l in lignes {
+                        ui.label(RichText::new(&l.surface).small());
+                        ui.label(petit(l.n_vertices.map_or_else(manque, |n| n.to_string())));
+                        let euler = petit(l.euler.map_or_else(manque, |e| e.to_string()));
+                        ui.label(if l.euler == Some(2) {
+                            euler.color(theme::TERMINE)
+                        } else {
+                            euler.color(theme::ACCENT)
+                        });
+                        let auto = petit(l.self_intersections.map_or_else(manque, |n| n.to_string()));
+                        ui.label(if l.self_intersections == Some(0) {
+                            auto.color(theme::TERMINE)
+                        } else {
+                            auto.color(theme::ERREUR)
+                        });
+                        ui.label(petit(
+                            l.area_mm2
+                                .map_or_else(manque, |a| format!("{:.1}", a / 100.0).replace('.', ",")),
+                        ));
+                        ui.label(petit(l.gi.map_or_else(manque, |g| format!("{g:.3}").replace('.', ","))));
+                        ui.label(petit(
+                            l.mean_dist_to_seg_mm
+                                .map_or_else(manque, |d| format!("{d:.3}").replace('.', ",")),
+                        ));
                         ui.end_row();
                     }
                 });

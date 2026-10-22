@@ -3435,18 +3435,19 @@ checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
 [[package]]
 name = "surfoxide-core"
 version = "0.1.0"
-source = "git+https://github.com/rousseau/surfoxide?rev=fd2e0590f35b31f8b6dc7903c6e89995769fccee#fd2e0590f35b31f8b6dc7903c6e89995769fccee"
+source = "git+https://github.com/rousseau/surfoxide?rev=dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3#dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3"
 
 [[package]]
 name = "surfoxide-io"
 version = "0.1.0"
-source = "git+https://github.com/rousseau/surfoxide?rev=fd2e0590f35b31f8b6dc7903c6e89995769fccee#fd2e0590f35b31f8b6dc7903c6e89995769fccee"
+source = "git+https://github.com/rousseau/surfoxide?rev=dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3#dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3"
 dependencies = [
  "base64",
  "flate2",
  "ndarray",
  "nifti",
  "quick-xml 0.38.4",
+ "serde_json",
  "surfoxide-core",
 ]
 

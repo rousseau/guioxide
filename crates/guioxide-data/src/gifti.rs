@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use surfoxide_core::{TopologyReport, topology_report};
+pub use surfoxide_io::surfqc::SurfQc;
 
 use crate::ErreurDonnees;
 
@@ -45,6 +46,11 @@ pub fn lire_surface(chemin: &Path) -> Result<Maillage, ErreurDonnees> {
         topologie: Some(topology_report(&maillage)),
         aire_mm2: Some(maillage.area()),
     })
+}
+
+/// Contrôle des maillages d'une session (`*_desc-surfqc.tsv`), lu par `surfoxide_io::surfqc::read_surfqc`.
+pub fn lire_controle_surfaces(chemin: &Path) -> Result<Vec<SurfQc>, ErreurDonnees> {
+    surfoxide_io::surfqc::read_surfqc(chemin).map_err(|e| ErreurDonnees::format(chemin, e))
 }
 
 /// Lit le premier champ par sommet d'un fichier `.shape.gii` (`surfoxide_io::gifti::read_fields`).

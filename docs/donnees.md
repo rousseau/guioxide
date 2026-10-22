@@ -98,17 +98,19 @@ Convention de nommage des surfaces : celle des dérivées BIDS de surface (style
 
 | Fichier | Contenu | Statut |
 |---|---|---|
-| `surfx-surfaces/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_white.surf.gii` | surface blanche (SB/SG) | proposé |
-| `…_hemi-{L,R}_pial.surf.gii` | surface piale (SG/LCS) | proposé |
+| `surfx-surfaces/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_white.surf.gii` | surface blanche (SB/SG) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
+| `…_hemi-{L,R}_pial.surf.gii` | surface piale (SG/LCS) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
 | `…_hemi-{L,R}_midthickness.surf.gii` | surface médiane | proposé, optionnel |
-| `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet | proposé |
-| `…_hemi-{L,R}_desc-<…>_tet.vtu` | maillage tétraédrique de la session, en mm, champs par nœud : **état initial de gyroxide**, lu par `surfoxide-io` (décidé le 20 oct. 2026) | proposé |
-| `…_desc-surfqc.tsv` | **le** contrôle des maillages, une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` ; `report.json` reste un détail facultatif (décidé le 20 oct. 2026) | proposé |
+| `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet ; `sulc` = profondeur DPF* (méthode dans les métadonnées GIfTI) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
+| `…_desc-surfqc.tsv` | **le** contrôle des maillages, une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` ; `report.json` reste un détail facultatif (décidé le 20 oct. 2026) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`), lu par `surfoxide_io::surfqc` |
 
 `hemi-` peut être omis si la surface couvre les deux hémisphères. GIfTI : intent
 `NIFTI_INTENT_POINTSET` en `float32` pour les sommets, `NIFTI_INTENT_TRIANGLE` en `int32` pour
 les faces, encodage `GZipBase64Binary`. La métadonnée `AnatomicalStructurePrimary`
 (`CortexLeft` / `CortexRight`) est renseignée.
+
+Le maillage tétraédrique (état initial de gyroxide) n'est **pas** produit par surfoxide : voir la section 4
+(décidé le 22 oct. 2026).
 
 ## 4 · Simulation — gyroxide
 
@@ -130,7 +132,7 @@ gyroxide/sub-X/ses-Y/anat/run-<label>/
 | `sequence.tsv` | index de la séquence ; `time` dans l'unité du modèle ; `ga_weeks` interpolé depuis le paramètre explicite `schedule.ga_weeks` du préréglage (même longueur que `schedule.t`), `n/a` sinon ; `gi` = aire de la surface / aire de son enveloppe convexe ; `energy` = énergie élastique `Ue` (décidé le 20 oct. 2026) | proposé |
 | `status.json` | `{"state": "running" \| "done" \| "failed", "step": n, "total_steps": N, "started": "<ISO 8601>", "updated": "<ISO 8601>", "message": "…"}` | proposé |
 | `config.toml` | paramètres (le format TOML de `gyroxide-model` existe déjà) | **existant** (à écrire dans le run) |
-| état initial | référence au fichier surfoxide utilisé (chemin relatif dans `config.toml`) | proposé |
+| état initial | maillage tétraédrique de la session, `derivatives/gyroxide/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_desc-<…>_tet.vtu` (VTK `UnstructuredGrid`, mm, repère de l'image, appartenance substance grise / blanche par nœud), **produit par gyroxide** à partir de la blanche, de la piale et du masque du cortex de `surfx` ; TetGen en outil externe à court terme, puis isosurface stuffing en Rust dans `gyroxide-mesh` ; chemin relatif dans `config.toml` (décidé le 22 oct. 2026) | proposé |
 
 Les traces NPY de validation (`--trace-every`) restent hors contrat : outil de développement,
 non lu par guioxide.
