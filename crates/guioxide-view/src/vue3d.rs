@@ -156,8 +156,9 @@ impl Rendu3d {
     }
 
     /// Caméra qui fait tenir les objets visibles, vue latérale gauche.
-    pub fn cadrer(objets: &[Objet3d]) -> Camera {
-        cadrer(&objets.iter().filter(|o| o.visible).collect::<Vec<_>>())
+    /// `aspect` : largeur / hauteur de l'image.
+    pub fn cadrer(objets: &[Objet3d], aspect: f32) -> Camera {
+        cadrer(&objets.iter().filter(|o| o.visible).collect::<Vec<_>>(), aspect)
     }
 }
 
@@ -208,7 +209,7 @@ impl Vue3d {
             return reponse;
         }
         let aspect = rect.width() / rect.height().max(1.0);
-        let camera = self.camera.get_or_insert_with(|| cadrer(&visibles));
+        let camera = self.camera.get_or_insert_with(|| cadrer(&visibles, aspect));
         interactions(ui, &reponse, rect, camera, &visibles, curseur);
         let camera = *camera;
 
@@ -265,8 +266,15 @@ impl Vue3d {
     }
 }
 
+/// Plus petit demi-angle de champ (vertical ou horizontal) : la sphère englobante doit tenir dans les deux sens.
+fn demi_champ_minimal(aspect: f32) -> f32 {
+    let vertical = CHAMP / 2.0;
+    let horizontal = ((CHAMP / 2.0).tan() * aspect).atan();
+    vertical.min(horizontal)
+}
+
 /// Caméra qui fait tenir la boîte des objets, vue latérale gauche.
-fn cadrer(objets: &[&Objet3d]) -> Camera {
+fn cadrer(objets: &[&Objet3d], aspect: f32) -> Camera {
     let mut min = [f32::INFINITY; 3];
     let mut max = [f32::NEG_INFINITY; 3];
     for o in objets {
@@ -282,7 +290,7 @@ fn cadrer(objets: &[&Objet3d]) -> Camera {
         cible,
         azimut: 0.0,
         elevation: 0.0,
-        distance: rayon.max(1.0) / (CHAMP / 2.0).sin(),
+        distance: rayon.max(1.0) / demi_champ_minimal(aspect).sin(),
     };
     camera.regarder(VuePredefinie::Laterale, true);
     camera
@@ -679,6 +687,17 @@ mod tests {
         assert!(c.oeil()[0] < c.cible[0]);
         c.regarder(VuePredefinie::Dorsale, true);
         assert!(c.oeil()[2] > c.cible[2] + 0.9 * c.distance);
+    }
+
+    #[test]
+    fn cadrage_selon_le_champ_le_plus_etroit() {
+        assert_eq!(
+            demi_champ_minimal(2.0),
+            CHAMP / 2.0,
+            "image large : le champ vertical limite"
+        );
+        let etroit = demi_champ_minimal(0.5);
+        assert!(etroit < CHAMP / 2.0 && (etroit.tan() - (CHAMP / 2.0).tan() * 0.5).abs() < 1e-6);
     }
 
     #[test]

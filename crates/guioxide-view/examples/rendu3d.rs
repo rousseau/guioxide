@@ -46,7 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("dorsale") => VuePredefinie::Dorsale,
         Some(v) => return Err(format!("vue inconnue : {v}").into()),
     };
-    let mut camera = Rendu3d::cadrer(&objets);
+    let taille = [900u32, 700];
+    let mut camera = Rendu3d::cadrer(&objets, taille[0] as f32 / taille[1] as f32);
     camera.regarder(vue, !args.iter().any(|a| a == "--droite"));
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
@@ -58,7 +59,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         adaptateur.get_info().backend
     );
 
-    let taille = [900u32, 700];
     let debut = std::time::Instant::now();
     let mut rendu = Rendu3d::new(&device);
     let texture = rendu.rendre(&device, &queue, taille, &camera, &objets);
