@@ -66,8 +66,9 @@ en 4 ms. Fluidité dans la fenêtre : à confirmer à la main.
 *Fin* : sur le jeu de test, toutes les sorties medoxide du contrat sont visibles.
 Dépend des issues medoxide.
 
-*État* : fait sur des sorties réelles de medoxide (sub-0104 du jeu de Marseille) converties au format
-du contrat ; mouvement par coupe identique au calcul numpy/nibabel (`cargo run --release -p
+*État* : fait. Depuis medoxide `f2fbcb6` (21 oct. 2026), vérifié **sans conversion** sur les sorties de
+`medx fetalbet / svr recon / bounti --bids` (sub-0104 de Marseille), lues par `medoxide_core::sorties`.
+Avant cela : sorties réelles converties au format du contrat ; mouvement par coupe identique au calcul numpy/nibabel (`cargo run --release -p
 guioxide-data --example svr`). Les sorties du contrat ne seront produites telles quelles qu'après les
 issues [medoxide#2 à #5](https://github.com/rousseau/medoxide/issues). Reportés : mode « comparer 2
 piles », couche « pile source projetée », export NIfTI, disposition 1 × 3 ; « Valider » et la note de

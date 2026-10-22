@@ -1,5 +1,9 @@
 # Issues à ouvrir sur medoxide
 
+> **Toutes faites** (21 oct. 2026, medoxide `8ab49a6` … `f2fbcb6`) : mode `--bids` de fetalbet, du SVR et de
+> bounti, `motion.tsv`, `slicequality.tsv` (avec `excluded`, `reason`), affine des piles, lecteurs
+> `medoxide_core::sorties`. Vérifié de bout en bout sur sub-0104 (jeu `dev-guioxide/marseille-sub-0104-medx`).
+
 Contexte commun à coller en tête de chaque issue :
 
 > guioxide (https://github.com/rousseau/guioxide) visualise les sorties de la chaîne

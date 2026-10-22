@@ -1,12 +1,11 @@
 //! Table des étiquettes d'une segmentation (`*_dseg.tsv`, format BIDS : `index name abbreviation color`).
 //!
-//! **Provisoire** pour la lecture du fichier : à remplacer par le lecteur de `medoxide-core`
-//! ([medoxide#6](https://github.com/rousseau/medoxide/issues/6)). Les couleurs par défaut relèvent de l'affichage.
+//! Le fichier est lu par `medoxide_core::sorties::lire_dseg_tsv` ; les couleurs par défaut relèvent de l'affichage.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::{ErreurDonnees, Tableau};
+use crate::ErreurDonnees;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Etiquette {
@@ -23,31 +22,24 @@ pub struct TableEtiquettes {
 }
 
 impl TableEtiquettes {
+    /// Lit `*_dseg.tsv` par `medoxide_core::sorties::lire_dseg_tsv` ; une étiquette sans couleur reçoit la couleur par
+    /// défaut de l'affichage.
     pub fn lire(chemin: &Path) -> Result<TableEtiquettes, ErreurDonnees> {
-        let t = Tableau::lire(chemin)?;
-        if t.colonne("index").is_none() {
-            return Err(ErreurDonnees::format(chemin, "colonne « index » absente"));
-        }
-        let mut etiquettes = BTreeMap::new();
-        for i in 0..t.lignes.len() {
-            let Some(index) = t.valeur(i, "index") else { continue };
-            let index: u32 = index
-                .parse()
-                .map_err(|_| ErreurDonnees::format(chemin, format!("index invalide : {index}")))?;
-            let couleur = t
-                .valeur(i, "color")
-                .and_then(lire_couleur)
-                .unwrap_or_else(|| couleur_par_defaut(index));
-            let nom = t.valeur(i, "name").unwrap_or("").to_owned();
-            etiquettes.insert(
-                index,
-                Etiquette {
-                    nom,
-                    abreviation: t.valeur(i, "abbreviation").map(str::to_owned),
-                    couleur,
-                },
-            );
-        }
+        let lignes = medoxide_core::sorties::lire_dseg_tsv(chemin).map_err(|e| ErreurDonnees::format(chemin, e))?;
+        let etiquettes = lignes
+            .into_iter()
+            .map(|e| {
+                let couleur = e.color.unwrap_or_else(|| couleur_par_defaut(e.index));
+                (
+                    e.index,
+                    Etiquette {
+                        nom: e.name,
+                        abreviation: e.abbreviation,
+                        couleur,
+                    },
+                )
+            })
+            .collect();
         Ok(TableEtiquettes { etiquettes })
     }
 
@@ -57,16 +49,6 @@ impl TableEtiquettes {
             .get(&index)
             .map_or_else(|| couleur_par_defaut(index), |e| e.couleur)
     }
-}
-
-/// `#rrggbb` → RVB.
-fn lire_couleur(texte: &str) -> Option<[u8; 3]> {
-    let h = texte.strip_prefix('#')?;
-    if h.len() != 6 {
-        return None;
-    }
-    let canal = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
-    Some([canal(0)?, canal(2)?, canal(4)?])
 }
 
 /// Couleur distincte pour un indice sans couleur déclarée : teintes espacées de l'angle d'or, saturées.

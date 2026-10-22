@@ -50,7 +50,7 @@ derivative`, sont ignorés). S'il dépose la racine d'un bucket, la racine BIDS 
 | Fichier | Contenu | Statut |
 |---|---|---|
 | `medx-fetalbet/sub-X/ses-Y/anat/<entités de la pile, sans son suffixe>_desc-brain_mask.nii.gz` | masque cérébral d'une pile, même grille que la pile | **existant** (ex. `sub-X_ses-Y_acq-ax_run-1_T2w` → `sub-X_ses-Y_acq-ax_run-1_desc-brain_mask.nii.gz`) |
-| `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_slicequality.tsv` | qualité par coupe (voir ci-dessous) | **à adapter** : écrit aujourd'hui par `write_quality`, sans nom de pile ni chemin fixé |
+| `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_slicequality.tsv` | qualité par coupe (voir ci-dessous) ; motifs d'exclusion dont `hors_masque` | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
 
 Colonnes de `slicequality.tsv` (reprend `write_quality` de `medoxide-svr`, en ajoutant le nom
 de pile et le motif d'exclusion) :
@@ -74,23 +74,21 @@ de pile et le motif d'exclusion) :
 
 | Fichier | Contenu | Statut |
 |---|---|---|
-| `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_T2w.nii.gz` | volume reconstruit (sform écrit) | **à adapter** : nom et chemin fixés par l'appelant aujourd'hui |
-| `medx-svr/…/sub-X_ses-Y_desc-svr_T2w.json` | paramètres (résolution, mode de mouvement, itérations, piles utilisées) | proposé |
-| `medx-svr/…/sub-X_ses-Y_desc-svr_motion.tsv` | une ligne par coupe : `stack`, `slice`, puis la matrice 4×4 | **à adapter** (voir ci-dessous) |
-| `medx-svr/…/sub-X_ses-Y_desc-svr_slicequality.tsv` | voir étape 1 | à adapter |
-| `medx-bounti/sub-X/ses-Y/anat/sub-X_ses-Y_desc-bounti_dseg.nii.gz` | segmentation, même grille que le volume reconstruit | proposé |
-| `medx-bounti/…/sub-X_ses-Y_desc-bounti_dseg.tsv` | table des étiquettes : `index`, `name`, `abbreviation`, `color` | proposé (format BIDS `dseg.tsv`) |
+| `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_T2w.nii.gz` | volume reconstruit (sform et qform écrits) | **existant** (medoxide `f2fbcb6`) |
+| `medx-svr/…/sub-X_ses-Y_desc-svr_T2w.json` | paramètres (résolution, mode de mouvement, réglages, piles utilisées, ligne de commande, convention du mouvement) | **existant** (medoxide `f2fbcb6`) |
+| `medx-svr/…/sub-X_ses-Y_desc-svr_motion.tsv` | une ligne par coupe : `stack`, `slice`, puis la matrice 4×4 | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
+| `medx-svr/…/sub-X_ses-Y_desc-svr_slicequality.tsv` | voir étape 1 | **existant** |
+| `medx-bounti/sub-X/ses-Y/anat/sub-X_ses-Y_desc-bounti_dseg.nii.gz` | segmentation, même grille que le volume reconstruit | **existant** (medoxide `f2fbcb6`) |
+| `medx-bounti/…/sub-X_ses-Y_desc-bounti_dseg.tsv` | table des étiquettes : `index`, `name`, `abbreviation`, `color` (19 étiquettes, couleurs de l'atlas KCL) | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
 
-**Mouvement.** `write_poses` écrit aujourd'hui `stack_index \t coupe \t` + 16 valeurs en ordre
-colonne, sans en-tête, l'indice de pile étant la position dans `--input`. À adapter :
+**Mouvement** (medoxide#3, fait) :
 
-- ligne d'en-tête : `stack slice m00 m10 m20 m30 m01 … m33` (ordre colonne, inchangé) ;
-- `stack` = nom de fichier de la pile, pas son indice ;
-- sens de la matrice documenté dans le `.json` voisin. D'après le code du SVR
-  (`Slice::with_motion`), c'est le mouvement rigide `M` de la coupe, absolu par rapport à la
-  géométrie d'en-tête et composé dans le repère monde : coupe → monde = `M · A · T(0, 0, k)`.
+- ligne d'en-tête : `stack slice m00 m10 m20 m30 m01 … m33` (ordre colonne) ;
+- `stack` = nom de fichier de la pile, sans extension ;
+- sens de la matrice documenté dans le `.json` voisin : mouvement rigide `M` de la coupe, absolu par
+  rapport à la géométrie d'en-tête et composé dans le repère monde : coupe → monde = `M · A · T(0, 0, k)`.
 
-guioxide en déduit, par coupe, le déplacement du centre de la coupe `‖M·c − c‖` (mm, `c` = centre
+`medoxide_core::sorties::mouvement_par_coupe` en déduit, par coupe, le déplacement du centre de la coupe `‖M·c − c‖` (mm, `c` = centre
 de la coupe `k` dans la géométrie d'en-tête) et l'angle de rotation de `M` (°), pour la courbe de
 mouvement de l'onglet 2.
 

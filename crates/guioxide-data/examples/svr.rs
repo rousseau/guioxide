@@ -25,7 +25,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(c) => Some(lire_qualite(&c)?),
         None => None,
     };
-    let geometrie = |pile: &str| lire_geometrie(&Path::new(piles).join(format!("{pile}.nii.gz"))).ok();
+    let geometrie = |pile: &str| {
+        lire_geometrie(&Path::new(piles).join(format!("{pile}.nii.gz")))
+            .ok()
+            .map(|(d, a)| (d, a.0))
+    };
     let points = mouvement_par_coupe(&mouvement, geometrie, qualite.as_deref());
 
     let mut par_pile: BTreeMap<&str, Vec<_>> = BTreeMap::new();
@@ -34,10 +38,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("pile\tcoupes\texclues\ttranslation_moy_mm\ttranslation_max_mm\trotation_max_deg");
     for (pile, pts) in par_pile {
-        let moy = pts.iter().map(|p| p.translation).sum::<f64>() / pts.len() as f64;
-        let max_t = pts.iter().map(|p| p.translation).fold(0.0, f64::max);
-        let max_r = pts.iter().map(|p| p.rotation).fold(0.0, f64::max);
-        let exclues = pts.iter().filter(|p| p.exclue).count();
+        let moy = pts.iter().map(|p| p.translation_mm).sum::<f64>() / pts.len() as f64;
+        let max_t = pts.iter().map(|p| p.translation_mm).fold(0.0, f64::max);
+        let max_r = pts.iter().map(|p| p.rotation_deg).fold(0.0, f64::max);
+        let exclues = pts.iter().filter(|p| p.excluded).count();
         println!("{pile}\t{}\t{exclues}\t{moy:.4}\t{max_t:.4}\t{max_r:.4}", pts.len());
     }
     println!(

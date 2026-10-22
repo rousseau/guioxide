@@ -71,7 +71,10 @@ fn mouvement_session(donnees: &DonneesSession) -> Vec<PointMouvement> {
     let Some(lignes) = donnees.mouvement.lu() else {
         return Vec::new();
     };
-    let geometrie = |pile: &str| donnees.geometries.get(pile).and_then(|g| g.as_ref().ok()).copied();
+    let geometrie = |pile: &str| {
+        let (dims, affine) = donnees.geometries.get(pile)?.as_ref().ok()?;
+        Some((*dims, affine.0))
+    };
     mouvement_par_coupe(lignes, geometrie, donnees.qualite.lu().map(Vec::as_slice))
 }
 
@@ -313,9 +316,9 @@ fn resume_mouvement(ui: &mut Ui, mouvement: &[PointMouvement], donnees: &Donnees
             ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));
         }
         Fichier::Lu(lignes) => {
-            let max_t = mouvement.iter().map(|p| p.translation).fold(0.0, f64::max);
-            let max_r = mouvement.iter().map(|p| p.rotation).fold(0.0, f64::max);
-            let moy_t = mouvement.iter().map(|p| p.translation).sum::<f64>() / mouvement.len().max(1) as f64;
+            let max_t = mouvement.iter().map(|p| p.translation_mm).fold(0.0, f64::max);
+            let max_r = mouvement.iter().map(|p| p.rotation_deg).fold(0.0, f64::max);
+            let moy_t = mouvement.iter().map(|p| p.translation_mm).sum::<f64>() / mouvement.len().max(1) as f64;
             ui.label(format!(
                 "{} coupes · translation moyenne {} mm, maximale {} mm",
                 mouvement.len(),
@@ -382,8 +385,8 @@ fn courbe_mouvement(
     let serie = |f: fn(&PointMouvement) -> f64| PlotPoints::new(choisis.iter().map(|(x, m)| [*x, f(m)]).collect());
     let exclues: Vec<[f64; 2]> = choisis
         .iter()
-        .filter(|(_, m)| m.exclue)
-        .map(|(x, m)| [*x, m.translation])
+        .filter(|(_, m)| m.excluded)
+        .map(|(x, m)| [*x, m.translation_mm])
         .collect();
     let limites: Vec<f64> = if pile.is_none() {
         choisis
@@ -403,8 +406,8 @@ fn courbe_mouvement(
         })
         .show_background(false)
         .show(ui, |p| {
-            p.line(Line::new("translation (mm)", serie(|m| m.translation)).color(theme::TERMINE));
-            p.line(Line::new("rotation (°)", serie(|m| m.rotation)).color(theme::ACCENT));
+            p.line(Line::new("translation (mm)", serie(|m| m.translation_mm)).color(theme::TERMINE));
+            p.line(Line::new("rotation (°)", serie(|m| m.rotation_deg)).color(theme::ACCENT));
             if !exclues.is_empty() {
                 p.points(Points::new("exclues", exclues).color(theme::ERREUR).radius(3.0));
             }
@@ -467,10 +470,10 @@ mod tests {
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ]);
-        let ligne = |stack: &str, slice, matrice| MouvementCoupe {
+        let ligne = |stack: &str, slice, matrice: Affine| MouvementCoupe {
             stack: stack.into(),
             slice,
-            matrice,
+            matrice: matrice.0,
         };
         let qualite = |slice, excluded| QualiteCoupe {
             stack: "p".into(),
@@ -491,9 +494,9 @@ mod tests {
         };
         let m = mouvement_session(&donnees);
         assert_eq!(m.len(), 2, "la pile sans géométrie est omise");
-        assert!((m[0].translation - 5.0).abs() < 1e-12 && m[0].rotation == 0.0 && !m[0].exclue);
+        assert!((m[0].translation_mm - 5.0).abs() < 1e-12 && m[0].rotation_deg == 0.0 && !m[0].excluded);
         // (1, 1, 1) → (−1, 1, 1) : déplacement 2 mm, rotation 90°.
-        assert!((m[1].translation - 2.0).abs() < 1e-12 && (m[1].rotation - 90.0).abs() < 1e-9 && m[1].exclue);
+        assert!((m[1].translation_mm - 2.0).abs() < 1e-12 && (m[1].rotation_deg - 90.0).abs() < 1e-9 && m[1].excluded);
     }
 
     #[test]

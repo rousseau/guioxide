@@ -5,8 +5,8 @@
 //!
 //! - Volumes NIfTI, lus par `medoxide-core` (voxels et affine par la même règle sform / qform que les outils) ;
 //! - surfaces et champs GIfTI, lus par `surfoxide-io`, topologie et aire par `surfoxide-core` ;
-//! - **provisoires**, en attendant les outils : qualité, mouvement et étiquettes (medoxide#6), runs de gyroxide
-//!   (gyroxide#3) ; tableaux TSV génériques pour l'indexation BIDS ;
+//! - qualité, mouvement par coupe et étiquettes, lus et calculés par `medoxide_core::sorties` ;
+//! - **provisoire**, en attendant gyroxide#3 : runs de gyroxide ; tableaux TSV génériques pour l'indexation BIDS ;
 //! - [`Chargeur`] : lecture sur des fils d'arrière-plan, avec un cache évincé par taille.
 //!
 //! Aucune dépendance graphique.
