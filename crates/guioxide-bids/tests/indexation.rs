@@ -168,12 +168,12 @@ fn etats_d_avancement_selon_le_contrat() {
 
     // 1 · Examen : un masque par pile T2w.
     ecrire(
-        &anat("medx-fetalbet").join("sub-01_ses-01_run-1_T2w_desc-brain_mask.nii.gz"),
+        &anat("medx-fetalbet").join("sub-01_ses-01_run-1_desc-brain_mask.nii.gz"),
         GZIP,
     );
     assert_eq!(etat(Etape::Examen), EtatEtape::EnCours);
     ecrire(
-        &anat("medx-fetalbet").join("sub-01_ses-01_run-2_T2w_desc-brain_mask.nii.gz"),
+        &anat("medx-fetalbet").join("sub-01_ses-01_run-2_desc-brain_mask.nii.gz"),
         GZIP,
     );
     assert_eq!(etat(Etape::Examen), EtatEtape::Terminee);

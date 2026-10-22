@@ -49,7 +49,7 @@ derivative`, sont ignorés). S'il dépose la racine d'un bucket, la racine BIDS 
 
 | Fichier | Contenu | Statut |
 |---|---|---|
-| `medx-fetalbet/sub-X/ses-Y/anat/<source>_desc-brain_mask.nii.gz` | masque cérébral d'une pile, même grille que la pile | **existant** |
+| `medx-fetalbet/sub-X/ses-Y/anat/<entités de la pile, sans son suffixe>_desc-brain_mask.nii.gz` | masque cérébral d'une pile, même grille que la pile | **existant** (ex. `sub-X_ses-Y_acq-ax_run-1_T2w` → `sub-X_ses-Y_acq-ax_run-1_desc-brain_mask.nii.gz`) |
 | `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_slicequality.tsv` | qualité par coupe (voir ci-dessous) | **à adapter** : écrit aujourd'hui par `write_quality`, sans nom de pile ni chemin fixé |
 
 Colonnes de `slicequality.tsv` (reprend `write_quality` de `medoxide-svr`, en ajoutant le nom

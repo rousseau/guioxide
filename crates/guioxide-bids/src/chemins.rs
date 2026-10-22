@@ -37,9 +37,16 @@ impl CheminsSession {
     }
 
     /// Masque cérébral d'une pile (`medx-fetalbet`), sur la grille de la pile.
+    ///
+    /// Nom BIDS écrit par medoxide : les entités de la pile sans son suffixe de contraste, puis `desc-brain_mask`
+    /// (`sub-01_ses-01_acq-ax_run-1_T2w` → `sub-01_ses-01_acq-ax_run-1_desc-brain_mask.nii.gz`).
     pub fn masque(&self, pile: &Pile) -> PathBuf {
+        let entites = pile
+            .nom
+            .strip_suffix(&format!("_{}", pile.contraste))
+            .unwrap_or(&pile.nom);
         self.anat("medx-fetalbet")
-            .join(format!("{}_desc-brain_mask.nii.gz", pile.nom))
+            .join(format!("{entites}_desc-brain_mask.nii.gz"))
     }
 
     /// Volume reconstruit (`medx-svr`).
