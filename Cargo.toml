@@ -16,7 +16,7 @@ guioxide-bids = { path = "crates/guioxide-bids" }
 guioxide-view = { path = "crates/guioxide-view" }
 
 # Crates « cœur » sans Burn, épinglés par rev (docs/architecture.md).
-medoxide-core = { git = "https://github.com/rousseau/medoxide", rev = "f2fbcb68be1d6e12b8ad4c1e0a34c8f1dc6f942f" }
+medoxide-core = { git = "https://github.com/rousseau/medoxide", rev = "6f06a05a5c7e3ff65115c0bebb39d1e1232263dd" }
 gyroxide-io = { git = "https://github.com/rousseau/gyroxide", rev = "298a7ce91f669e80411061d6a8239f880c08d302" }
 surfoxide-core = { git = "https://github.com/rousseau/surfoxide", rev = "dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3" }
 surfoxide-io = { git = "https://github.com/rousseau/surfoxide", rev = "dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3" }

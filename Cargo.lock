@@ -1962,7 +1962,7 @@ dependencies = [
 [[package]]
 name = "medoxide-core"
 version = "0.1.0"
-source = "git+https://github.com/rousseau/medoxide?rev=f2fbcb68be1d6e12b8ad4c1e0a34c8f1dc6f942f#f2fbcb68be1d6e12b8ad4c1e0a34c8f1dc6f942f"
+source = "git+https://github.com/rousseau/medoxide?rev=6f06a05a5c7e3ff65115c0bebb39d1e1232263dd#6f06a05a5c7e3ff65115c0bebb39d1e1232263dd"
 dependencies = [
  "ndarray",
  "nifti",
