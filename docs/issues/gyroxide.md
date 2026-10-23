@@ -1,5 +1,8 @@
 # Issues à ouvrir sur gyroxide
 
+> **État au 23 oct. 2026** : #2 (GIfTI en mm), #3 (run BIDS, `gyroxide-io`) et #4 (`schedule.ga_weeks`) faites
+> (PR #6 et #7). #5 (maillage tétraédrique) : TetGen externe fait, isosurface stuffing en Rust à venir.
+
 Contexte commun à coller en tête de chaque issue :
 
 > guioxide (https://github.com/rousseau/guioxide) visualise les sorties de la chaîne

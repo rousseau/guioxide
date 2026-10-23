@@ -128,11 +128,11 @@ gyroxide/sub-X/ses-Y/anat/run-<label>/
 
 | Élément | Contenu | Statut |
 |---|---|---|
-| surfaces de la séquence | GIfTI, **repère monde RAS mm** (transformée inverse de la normalisation appliquée) | **à adapter** : gyroxide écrit aujourd'hui du VTK legacy ASCII, en coordonnées normalisées |
-| `sequence.tsv` | index de la séquence ; `time` dans l'unité du modèle ; `ga_weeks` interpolé depuis le paramètre explicite `schedule.ga_weeks` du préréglage (même longueur que `schedule.t`), `n/a` sinon ; `gi` = aire de la surface / aire de son enveloppe convexe ; `energy` = énergie élastique `Ue` (décidé le 20 oct. 2026) | proposé |
-| `status.json` | `{"state": "running" \| "done" \| "failed", "step": n, "total_steps": N, "started": "<ISO 8601>", "updated": "<ISO 8601>", "message": "…"}` | proposé |
-| `config.toml` | paramètres (le format TOML de `gyroxide-model` existe déjà) | **existant** (à écrire dans le run) |
-| état initial | maillage tétraédrique de la session, `derivatives/gyroxide/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_desc-<…>_tet.vtu` (VTK `UnstructuredGrid`, mm, repère de l'image, appartenance substance grise / blanche par nœud), **produit par gyroxide** à partir de la blanche, de la piale et du masque du cortex de `surfx` ; TetGen en outil externe à court terme, puis isosurface stuffing en Rust dans `gyroxide-mesh` ; chemin relatif dans `config.toml` (décidé le 22 oct. 2026) | proposé |
+| surfaces de la séquence | GIfTI, **repère monde RAS mm** (transformée inverse de la normalisation appliquée) | **existant** (gyroxide `298a7ce`) |
+| `sequence.tsv` | index de la séquence ; `time` dans l'unité du modèle ; `ga_weeks` interpolé depuis le paramètre explicite `schedule.ga_weeks` du préréglage (même longueur que `schedule.t`), `n/a` sinon ; `gi` = aire de la surface / aire de son enveloppe convexe ; `energy` = énergie élastique `Ue` (décidé le 20 oct. 2026) | **existant** (gyroxide `298a7ce`, `gyroxide run --bids` ; lu par `gyroxide-io`) |
+| `status.json` | `{"state": "running" \| "done" \| "failed", "step": n, "total_steps": N, "started": "<ISO 8601>", "updated": "<ISO 8601>", "message": "…"}` | **existant** (gyroxide `298a7ce`, `gyroxide run --bids` ; lu par `gyroxide-io`) |
+| `config.toml` | paramètres (le format TOML de `gyroxide-model` existe déjà) | **existant** (gyroxide `298a7ce`, écrit dans le run) |
+| état initial | maillage tétraédrique de la session, `derivatives/gyroxide/sub-X/ses-Y/anat/sub-X_ses-Y_hemi-{L,R}_desc-<…>_tet.vtu` (VTK `UnstructuredGrid`, mm, repère de l'image, appartenance substance grise / blanche par nœud), **produit par gyroxide** à partir de la blanche, de la piale et du masque du cortex de `surfx` ; TetGen en outil externe à court terme, puis isosurface stuffing en Rust dans `gyroxide-mesh` ; chemin relatif dans `config.toml` (décidé le 22 oct. 2026) | **existant** avec TetGen externe (gyroxide `298a7ce`, `gyroxide mesh`) ; isosurface stuffing à venir (gyroxide#5) |
 
 Les traces NPY de validation (`--trace-every`) restent hors contrat : outil de développement,
 non lu par guioxide.

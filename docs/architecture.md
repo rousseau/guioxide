@@ -21,8 +21,9 @@
    mesures, mouvement, indices) vient des crates des outils ; guioxide les adapte à l'affichage. Ce qui
    manque se demande par une issue sur l'outil, plutôt que d'être réécrit dans guioxide. Restent dans
    guioxide : la navigation (indexation BIDS, état d'avancement), l'échantillonnage pour l'affichage, le
-   rendu. Les lecteurs encore écrits dans guioxide sont marqués **provisoires**, avec leur issue
-   (gyroxide#3 ; ceux de medoxide sont remplacés par `medoxide_core::sorties` depuis medoxide#6).
+   rendu. Depuis le 23 oct. 2026, guioxide ne lit plus aucun fichier d'outil lui-même : NIfTI et sorties
+   du SVR par `medoxide-core`, surfaces et contrôle des maillages par `surfoxide-io`, runs par
+   `gyroxide-io`.
    Seule écriture de guioxide : ses propres annotations de validation
    (`derivatives/guioxide/…/desc-qc.json`, voir [donnees.md](donnees.md)), jamais dans les dérivées
    des outils.

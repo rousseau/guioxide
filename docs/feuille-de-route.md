@@ -102,8 +102,10 @@ Reporté : capture d'écran de la vue 3D ; `desc-surfqc.tsv` est lu s'il existe,
 *Fin* : un run de gyroxide se rejoue ; les surfaces simulées sont dans le repère de l'image.
 Dépend des issues gyroxide.
 
-*État* : fait sur un run réel (`out/scan_hmu/h2_c2` de la station, 16 surfaces) converti au format du
-contrat. Le run se rejoue ; ses surfaces restent en coordonnées normalisées tant que
+*État* : fait. Depuis gyroxide `298a7ce` (23 oct. 2026), vérifié **sans conversion** sur un run réel d'une
+session (`gyroxide run --bids` depuis le `.vtu` de la piale de `surfx`) : surfaces en mm dans le repère de
+l'image, suivi en direct d'un run en cours, runs lus par `gyroxide-io`. Avant cela : run d'atlas converti
+au format du contrat. Le run se rejoue ; ses surfaces restent en coordonnées normalisées tant que
 [gyroxide#2](https://github.com/rousseau/gyroxide/issues/2) n'est pas traitée (guioxide l'indique).
 Issues [gyroxide#2 à #4](https://github.com/rousseau/gyroxide/issues) ouvertes. Reportés : distance
 simulé ↔ observé, points d'indice de gyrification observés, fin du journal (pas de journal dans le
