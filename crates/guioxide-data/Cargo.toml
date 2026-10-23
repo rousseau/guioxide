@@ -13,6 +13,7 @@ thiserror.workspace = true
 serde_json.workspace = true
 surfoxide-core.workspace = true
 surfoxide-io.workspace = true
+gyroxide-io.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

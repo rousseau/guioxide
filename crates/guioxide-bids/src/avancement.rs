@@ -3,6 +3,8 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use guioxide_data::{State, lire_etat_run, lister_runs};
+
 use crate::CheminsSession;
 use crate::jeu::{Session, Sujet};
 use crate::{Etape, EtatEtape};
@@ -85,35 +87,24 @@ fn verifier(chemin: &Path) -> Option<Result<(), String>> {
 /// Au moins un run `done` → terminée ; sinon un run `running` → en cours ; sinon un run `failed` → erreur.
 /// Un `status.json` illisible met l'étape en erreur.
 fn etat_simulation(dossier: &Path) -> EtatEtape {
-    let Ok(entrees) = std::fs::read_dir(dossier) else {
-        return EtatEtape::NonFaite;
-    };
-    let mut runs: Vec<PathBuf> = entrees
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.is_dir() && p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("run-")))
-        .collect();
-    runs.sort();
     let mut etats = Vec::new();
-    for run in runs {
+    for (_, run) in lister_runs(dossier) {
         let chemin = run.join("status.json");
         if !chemin.exists() {
             continue;
         }
-        let lu = std::fs::read_to_string(&chemin)
-            .map_err(|e| e.to_string())
-            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).map_err(|e| e.to_string()));
-        match lu {
-            Ok(v) => etats.push((run, v)),
-            Err(e) => return EtatEtape::Erreur(format!("{} : {e}", chemin.display())),
+        match lire_etat_run(&chemin) {
+            Ok(e) => etats.push((run, e)),
+            Err(e) => return EtatEtape::Erreur(e.to_string()),
         }
     }
-    let a_l_etat = |etat: &str| etats.iter().find(|(_, v)| v["state"].as_str() == Some(etat));
-    if a_l_etat("done").is_some() {
+    let a_l_etat = |etat: State| etats.iter().find(|(_, e)| e.state == etat);
+    if a_l_etat(State::Done).is_some() {
         EtatEtape::Terminee
-    } else if a_l_etat("running").is_some() {
+    } else if a_l_etat(State::Running).is_some() {
         EtatEtape::EnCours
-    } else if let Some((run, v)) = a_l_etat("failed") {
-        let message = v["message"].as_str().unwrap_or("échec");
+    } else if let Some((run, e)) = a_l_etat(State::Failed) {
+        let message = e.message.as_deref().unwrap_or("échec");
         EtatEtape::Erreur(format!("{} : {message}", run.display()))
     } else {
         EtatEtape::NonFaite

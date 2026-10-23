@@ -6,7 +6,8 @@
 //! - Volumes NIfTI, lus par `medoxide-core` (voxels et affine par la même règle sform / qform que les outils) ;
 //! - surfaces et champs GIfTI, lus par `surfoxide-io`, topologie et aire par `surfoxide-core` ;
 //! - qualité, mouvement par coupe et étiquettes, lus et calculés par `medoxide_core::sorties` ;
-//! - **provisoire**, en attendant gyroxide#3 : runs de gyroxide ; tableaux TSV génériques pour l'indexation BIDS ;
+//! - runs de gyroxide (`status.json`, `sequence.tsv`), lus par `gyroxide-io` ;
+//! - tableaux TSV génériques pour l'indexation BIDS (`participants.tsv`, `sessions.tsv`) ;
 //! - [`Chargeur`] : lecture sur des fils d'arrière-plan, avec un cache évincé par taille.
 //!
 //! Aucune dépendance graphique.
@@ -26,7 +27,7 @@ use guioxide_geom::{Affine, Volume};
 pub use chargeur::{Chargeur, Etat};
 pub use etiquettes::{Etiquette, TableEtiquettes, couleur_par_defaut};
 pub use gifti::{Maillage, SurfQc, lire_champ, lire_controle_surfaces, lire_surface};
-pub use simulation::{EtatRun, PasSequence, lire_etat_run, lire_sequence, lister_runs};
+pub use simulation::{SequenceRow, State, Status, lire_etat_run, lire_sequence, lister_runs};
 pub use svr::{MouvementCoupe, PointMouvement, QualiteCoupe, lire_mouvement, lire_qualite, mouvement_par_coupe};
 pub use tsv::Tableau;
 

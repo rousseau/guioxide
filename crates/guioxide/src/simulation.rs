@@ -9,7 +9,9 @@ use egui::{RichText, Ui, Vec2};
 use egui_plot::{Line, Plot, PlotPoints, VLine};
 use egui_wgpu::RenderState;
 use guioxide_bids::{CheminsSession, Etape, JeuBids};
-use guioxide_data::{EtatRun, Maillage, PasSequence, lire_etat_run, lire_sequence, lister_runs};
+use guioxide_data::{
+    Maillage, SequenceRow as PasSequence, State, Status as EtatRun, lire_etat_run, lire_sequence, lister_runs,
+};
 use guioxide_geom::PointMonde;
 use guioxide_view::theme;
 use guioxide_view::vue3d::{Camera, Objet3d, Vue3d};
@@ -79,7 +81,7 @@ impl Run {
     }
 
     fn en_cours(&self) -> bool {
-        self.etat.lu().is_some_and(|e| e.state == "running")
+        self.etat.lu().is_some_and(|e| e.state == State::Running)
     }
 
     fn pas(&self) -> &[PasSequence] {
@@ -154,8 +156,8 @@ fn duree(secondes: i64) -> String {
 fn temps(etat: &EtatRun) -> Option<(i64, Option<i64>)> {
     let ecoule = secondes_iso(etat.updated.as_deref()?)? - secondes_iso(etat.started.as_deref()?)?;
     let restant = etat
-        .avancement()
-        .filter(|&p| p > 0.0 && etat.state == "running")
+        .progress()
+        .filter(|&p| p > 0.0 && etat.state == State::Running)
         .map(|p| (ecoule as f64 * (1.0 - p) / p).round() as i64);
     Some((ecoule.max(0), restant))
 }
@@ -365,7 +367,7 @@ impl Simulation {
                 {
                     choix = Some(i);
                 }
-                if let Some(p) = r.etat.lu().and_then(EtatRun::avancement) {
+                if let Some(p) = r.etat.lu().and_then(EtatRun::progress) {
                     ui.label(
                         RichText::new(format!("{:.0} %", p * 100.0))
                             .small()
@@ -388,7 +390,7 @@ impl Simulation {
         if let Some(e) = r.etat.lu()
             && let Some(m) = &e.message
         {
-            ui.label(RichText::new(m).color(if e.state == "failed" {
+            ui.label(RichText::new(m).color(if e.state == State::Failed {
                 theme::ERREUR
             } else {
                 theme::TEXTE_SECONDAIRE
@@ -447,8 +449,8 @@ impl Simulation {
             ui.label(RichText::new(texte).monospace());
         });
         if let Some(e) = etat
-            && e.state == "running"
-            && let Some(p) = e.avancement()
+            && e.state == State::Running
+            && let Some(p) = e.progress()
         {
             ui.add(egui::ProgressBar::new(p as f32).text(format!(
                 "en cours : pas {} / {}",
@@ -468,7 +470,7 @@ fn courbes(ui: &mut Ui, run: &Run, pas: &[PasSequence], index: usize) {
     ui.strong("Calcul");
     match run.etat.lu() {
         Some(e) => {
-            ui.label(format!("état : {}", e.state));
+            ui.label(format!("état : {}", e.state.as_str()));
             if let Some((ecoule, restant)) = temps(e) {
                 ui.label(format!("écoulé : {}", duree(ecoule)));
                 if let Some(r) = restant {
@@ -529,7 +531,7 @@ mod tests {
         assert_eq!(secondes_iso("2026-10-19T10:30:15Z"), Some(1_792_405_815));
         assert_eq!(secondes_iso("pas une date"), None);
         let e = EtatRun {
-            state: "running".into(),
+            state: State::Running,
             step: Some(250),
             total_steps: Some(1000),
             started: Some("2026-10-19T10:00:00Z".into()),

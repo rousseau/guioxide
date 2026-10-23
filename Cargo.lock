@@ -1516,6 +1516,7 @@ name = "guioxide-data"
 version = "0.1.0"
 dependencies = [
  "guioxide-geom",
+ "gyroxide-io",
  "medoxide-core",
  "serde_json",
  "surfoxide-core",
@@ -1541,6 +1542,16 @@ dependencies = [
  "guioxide-data",
  "guioxide-geom",
  "pollster 1.0.1",
+]
+
+[[package]]
+name = "gyroxide-io"
+version = "0.1.0"
+source = "git+https://github.com/rousseau/gyroxide?rev=298a7ce91f669e80411061d6a8239f880c08d302#298a7ce91f669e80411061d6a8239f880c08d302"
+dependencies = [
+ "serde_json",
+ "surfoxide-metrics",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3074,6 +3085,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "robust"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e27ee8bb91ca0adcf0ecb116293afa12d393f9c2b9b9cd54d33e8078fe19839"
+
+[[package]]
 name = "ron"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3448,6 +3465,15 @@ dependencies = [
  "nifti",
  "quick-xml 0.38.4",
  "serde_json",
+ "surfoxide-core",
+]
+
+[[package]]
+name = "surfoxide-metrics"
+version = "0.1.0"
+source = "git+https://github.com/rousseau/surfoxide?rev=dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3#dc02bf7a24ae8e2dd0aec24ae5b16001c6392fb3"
+dependencies = [
+ "robust",
  "surfoxide-core",
 ]
 
