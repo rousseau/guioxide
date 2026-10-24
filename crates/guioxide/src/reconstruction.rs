@@ -488,6 +488,7 @@ mod tests {
         };
         let donnees = DonneesSession {
             qualite: Fichier::Lu(vec![qualite(0, false), qualite(1, true)]),
+            qualite_acquisition: Fichier::Absent,
             mouvement: Fichier::Lu(vec![ligne("p", 0, t), ligne("p", 1, r), ligne("inconnue", 0, t)]),
             parametres: Fichier::Absent,
             geometries,

@@ -66,9 +66,18 @@ de pile et le motif d'exclusion) :
 | `excluded` | 0/1 | coupe exclue de la reconstruction |
 | `reason` | texte | motif d'exclusion (`outlier`, `hors_masque`, …) ou `n/a` |
 
-> Ce fichier est un QC **après** recalage. Un QC des acquisitions **avant** reconstruction
-> (artefacts, signal, couverture) est à définir dans medoxide ; s'il existe, il suivra le même
-> format avec `desc-acq_slicequality.tsv`. L'onglet Examen affiche celui qui est présent.
+> Ce fichier est un QC **après** recalage. Le QC des acquisitions **avant** reconstruction est
+> `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-acq_slicequality.tsv` (`medx svr qc --bids …`, medoxide
+> `aa81ee9` ou plus récent), **existant**. Mêmes colonnes, avec `registered` = 0, `score_before` = concordance aux poses
+> d'en-tête (`score_after` et `correction_rms_mm` à `n/a`), et trois colonnes de plus (`mask_pixels`, `mean_signal`,
+> `n_partners`) que guioxide ne lit pas. `excluded` = 1 pour une coupe **signalée** ; `reason` vaut `hors_masque`,
+> `masque_insuffisant`, `sans_partenaire` (le SVR ne recale pas ces trois-là) ou `signal_faible` (creux de signal). Le fichier
+> `.json` voisin décrit les colonnes et les seuils.
+>
+> **Affichage (onglet Examen).** Un seul des deux fichiers existe : c'est lui. Les deux existent : une bascule
+> « Avant reconstruction » / « Après reconstruction » (par défaut après). L'histogramme trace `score_before` (concordance
+> d'en-tête) pour le contrôle, `score_after` pour la qualité après recalage ; les vignettes sont encadrées dans une couleur par
+> motif et la synthèse donne le décompte par motif.
 
 ## 2 · Reconstruction — medoxide
 

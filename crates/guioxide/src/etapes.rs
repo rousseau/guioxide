@@ -78,9 +78,21 @@ impl<T> Fichier<T> {
     }
 }
 
+/// Quelle qualité par coupe l'onglet Examen affiche : celle des acquisitions, avant reconstruction (`desc-acq_slicequality.tsv`, `medx svr qc`), ou celle d'après recalage (`desc-svr_slicequality.tsv`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SourceQualite {
+    /// Contrôle des acquisitions : un seul score, la concordance aux poses d'en-tête (`score_before`).
+    Avant,
+    /// Qualité après recalage par le SVR : scores avant et après, coupes exclues de la reconstruction.
+    Apres,
+}
+
 /// Fichiers de la session hors volumes : petits, lus une fois quand la session change.
 pub struct DonneesSession {
+    /// Qualité par coupe après recalage (SVR).
     pub qualite: Fichier<Vec<QualiteCoupe>>,
+    /// Contrôle qualité des acquisitions, avant reconstruction.
+    pub qualite_acquisition: Fichier<Vec<QualiteCoupe>>,
     pub mouvement: Fichier<Vec<MouvementCoupe>>,
     pub parametres: Fichier<serde_json::Value>,
     /// Géométrie de chaque pile (dimensions, affine), lue dans l'en-tête seul, par nom de pile.
@@ -101,6 +113,7 @@ impl DonneesSession {
         };
         DonneesSession {
             qualite: Fichier::lire(&chemins.qualite(), lire_qualite),
+            qualite_acquisition: Fichier::lire(&chemins.qualite_acquisition(), lire_qualite),
             mouvement: Fichier::lire(&chemins.mouvement(), lire_mouvement),
             parametres: Fichier::lire(&chemins.parametres_svr(), json),
             geometries: session
@@ -111,9 +124,28 @@ impl DonneesSession {
         }
     }
 
-    /// Lignes de qualité d'une pile.
-    pub fn qualite_pile(&self, pile: &str) -> Vec<&QualiteCoupe> {
-        self.qualite
+    /// Le fichier de qualité de `source`.
+    pub fn fichier_qualite(&self, source: SourceQualite) -> &Fichier<Vec<QualiteCoupe>> {
+        match source {
+            SourceQualite::Avant => &self.qualite_acquisition,
+            SourceQualite::Apres => &self.qualite,
+        }
+    }
+
+    /// Source affichée par défaut : la qualité après recalage si elle existe, sinon le contrôle des acquisitions ; `None` s'il n'y a ni l'une ni l'autre.
+    pub fn source_par_defaut(&self) -> Option<SourceQualite> {
+        if self.qualite.lu().is_some() {
+            Some(SourceQualite::Apres)
+        } else if self.qualite_acquisition.lu().is_some() {
+            Some(SourceQualite::Avant)
+        } else {
+            None
+        }
+    }
+
+    /// Lignes de qualité d'une pile, dans la source `source`.
+    pub fn qualite_pile(&self, source: SourceQualite, pile: &str) -> Vec<&QualiteCoupe> {
+        self.fichier_qualite(source)
             .lu()
             .map(|q| q.iter().filter(|l| l.stack == pile).collect())
             .unwrap_or_default()
