@@ -6,7 +6,8 @@
 //!
 //! - `--onglet` : ouvre directement une étape (1 Examen … 4 Simulation) ;
 //! - `--session` : choisit la session dont le libellé contient ce texte (`sub-01 / ses-02`), la première sinon ;
-//! - `--capture` : enregistre la fenêtre en PNG une fois les données affichées, puis quitte.
+//! - `--capture` : enregistre la fenêtre en PNG une fois les données affichées, puis quitte (erreur après 5 min si
+//!   la fenêtre ne se redessine pas : écran verrouillé, fenêtre masquée).
 
 mod app;
 mod capture;
@@ -56,6 +57,9 @@ fn main() -> eframe::Result {
             std::process::exit(2);
         }
     };
+    if let Some(chemin) = &options_guioxide.capture {
+        capture::surveiller(chemin.clone());
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("guioxide")

@@ -138,7 +138,7 @@ pub struct Base {
 pub struct Validation {
     qc: Qc,
     erreur: Option<String>,
-    brouillons: BTreeMap<&'static str, (Avis, String)>,
+    brouillons: BTreeMap<&'static str, (Option<Avis>, String)>,
     /// Vrai après un enregistrement, jusqu'à ce que l'application relise l'état (tableau des sessions).
     modifiee: bool,
 }
@@ -222,12 +222,12 @@ impl Base {
             }
         }
         let (avis, note) = v.brouillons.entry(cle).or_insert_with(|| match v.qc.evaluation(etape) {
-            Some(e) => (e.avis, e.note.clone()),
-            None => (Avis::Valide, String::new()),
+            Some(e) => (Some(e.avis), e.note.clone()),
+            None => (None, String::new()),
         });
         ui.horizontal(|ui| {
             for a in Avis::TOUS {
-                ui.radio_value(avis, a, a.libelle());
+                ui.radio_value(avis, Some(a), a.libelle());
             }
         });
         ui.add(
@@ -239,20 +239,23 @@ impl Base {
         ui.horizontal(|ui| {
             ui.label("Opérateur");
             ui.add(egui::TextEdit::singleline(&mut self.operateur).desired_width(80.0));
-            let pret = !self.operateur.trim().is_empty();
-            let bouton = ui.add_enabled(pret, egui::Button::new("Enregistrer →"));
-            let bouton = if pret {
-                bouton
-            } else {
-                bouton.on_disabled_hover_text("indiquer l'opérateur")
+            let manque = match (*avis, self.operateur.trim().is_empty()) {
+                (None, _) => Some("choisir un avis"),
+                (_, true) => Some("indiquer l'opérateur"),
+                (Some(_), false) => None,
             };
-            if bouton.clicked() {
+            let bouton = ui.add_enabled(manque.is_none(), egui::Button::new("Enregistrer →"));
+            let bouton = match manque {
+                Some(m) => bouton.on_disabled_hover_text(m),
+                None => bouton,
+            };
+            if let (true, Some(avis)) = (bouton.clicked(), *avis) {
                 let outil = lister_derivees(chemins.derivees())
                     .ok()
                     .and_then(|d| d.into_iter().find(|d| d.pipeline == pipeline(etape)))
                     .and_then(|d| d.generateur);
                 let evaluation = Evaluation {
-                    avis: *avis,
+                    avis,
                     note: note.trim().to_owned(),
                     operateur: self.operateur.trim().to_owned(),
                     date: maintenant_iso(),

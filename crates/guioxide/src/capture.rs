@@ -10,6 +10,23 @@ use egui::ColorImage;
 /// Durée sans lecture en cours avant une capture automatique : le temps que les vues se composent.
 const STABLE: Duration = Duration::from_millis(1500);
 
+/// Délai maximal d'une capture `--capture` : au-delà, la fenêtre ne se redessine sans doute pas (écran verrouillé
+/// ou en veille, fenêtre masquée) et la boucle d'egui ne rend plus la main.
+const DELAI_MAX: Duration = Duration::from_secs(300);
+
+/// Surveille une capture `--capture` depuis un autre fil : quitte en erreur si elle n'est pas écrite à temps.
+pub fn surveiller(chemin: PathBuf) {
+    std::thread::spawn(move || {
+        std::thread::sleep(DELAI_MAX);
+        eprintln!(
+            "capture non écrite après {} s : {} (écran verrouillé ou en veille, fenêtre masquée ?)",
+            DELAI_MAX.as_secs(),
+            chemin.display()
+        );
+        std::process::exit(1);
+    });
+}
+
 /// Écrit une image egui (RVBA, sRGB) en PNG.
 pub fn enregistrer_png(image: &ColorImage, chemin: &Path) -> Result<(), String> {
     let fichier = std::fs::File::create(chemin).map_err(|e| format!("{} : {e}", chemin.display()))?;
