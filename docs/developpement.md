@@ -1,15 +1,21 @@
 # Développement : conventions communes
 
-guioxide relie quatre dépôts développés sur deux machines : medoxide sur Mac (Apple Silicon,
-Metal), surfoxide et gyroxide sur la station Linux RTX 2080 Ti (CUDA). Le but n'est pas
-d'avoir une seule machine, mais que **chaque outil compile, se teste et produise les mêmes
-fichiers sur les deux**.
+guioxide relie quatre dépôts. Chacun se développe indifféremment sur trois machines, selon
+leur charge : un Mac Apple Silicon (Metal), une station Linux x86_64 et une station Linux
+aarch64, toutes deux avec GPU NVIDIA (CUDA, Vulkan). Le but n'est pas d'avoir une seule
+machine, mais que **chaque outil compile, se teste et produise les mêmes fichiers sur les trois
+architectures : macOS arm64, Linux x86_64 et Linux aarch64**.
 
-## État actuel (octobre 2026)
+**Une seule machine active à la fois.** Tout le travail en cours vit sur une machine. Avant de
+la quitter, tout est committé et poussé, branches de travail comprises, sans stash ; on reprend
+sur la suivante par un `git pull --ff-only`. Les données lourdes ne passent jamais par git :
+elles sont rapatriées depuis un stockage S3 commun, traitées en local, puis renvoyées.
+
+## État actuel (novembre 2026)
 
 | | medoxide | surfoxide | gyroxide |
 |---|---|---|---|
-| Machine de dev | Mac (Metal) | station Linux RTX 2080 Ti | station Linux RTX 2080 Ti |
+| Tests CPU | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 |
 | Toolchain | **1.99.1** ([PR #7](https://github.com/rousseau/medoxide/pull/7)) | **1.99.1** ([PR #1](https://github.com/rousseau/surfoxide/pull/1)) | **1.99.1** ([PR #1](https://github.com/rousseau/gyroxide/pull/1)) |
 | Burn | `0.22.0-pre.4`, `wgpu` | `0.22.0`, features `wgpu` / `cuda` | `0.21.0`, `wgpu` par défaut, `cuda` prévu (non testé) |
 | CI | fmt, clippy, test (tests sur données locales sautés en CI) ; ubuntu + macos | fmt, clippy, test, selftest ; ubuntu + macos | fmt, clippy, test ; ubuntu + macos |
@@ -33,12 +39,16 @@ components = ["rustfmt", "clippy"]
 | Feature | Rôle | Où |
 |---|---|---|
 | `wgpu` (défaut) | Metal sur Mac, Vulkan sur Linux | tout le monde, tous les jours |
-| `cuda` | performance sur la station NVIDIA | optionnel |
-| backend CPU (`ndarray`) | oracle, tests en CI | toujours compilé |
+| `cuda` | performance sur les stations NVIDIA | optionnel |
+| backend CPU (`flex` ; `ndarray` dans gyroxide) | oracle, tests en CI | toujours compilé |
 
-Conséquence : medoxide doit pouvoir tourner sur la station (Vulkan ou CUDA), et surfoxide et
-gyroxide sur le Mac (Metal). Les tests de CI tournent sur le backend CPU, puisque les
+Conséquence : chaque outil doit pouvoir tourner sur les trois machines, Metal sur le Mac,
+Vulkan ou CUDA sur les deux stations. Les tests de CI tournent sur le backend CPU, puisque les
 machines GitHub n'ont pas de GPU.
+
+Sous Linux aarch64, `--features cuda` exige de lier avec `lld` (`-C link-arg=-fuse-ld=lld`) :
+le lieur GNU ne résout pas les symboles du LLVM statique embarqué par `cubecl-llvm`. Sous
+Linux x86_64, `rust-lld` est déjà le lieur par défaut.
 
 ### 3. Burn : converger vers une même version stable
 
@@ -60,8 +70,9 @@ steps:
 
 - Les tests qui exigent un GPU sont marqués `#[ignore = "gpu"]` et lancés à la main sur
   chaque machine : `cargo test --release -- --ignored`.
-- Avant une version, on lance ces tests GPU sur les deux machines (Metal et CUDA/Vulkan).
-- Plus tard, la station peut servir de *runner* auto-hébergé pour automatiser les tests GPU.
+- Avant une version, on lance ces tests GPU sur les trois machines (Metal ; CUDA et Vulkan
+  sur x86_64 et sur aarch64).
+- Plus tard, une des stations peut servir de *runner* auto-hébergé pour automatiser les tests GPU.
 
 ### 5. Un jeu de test commun
 
@@ -88,12 +99,11 @@ le contrat de données tient.
   (`GeneratedBy`) de ses dérivées.
 - Erreurs : messages destinés à l'utilisateur, avec le chemin du fichier en cause.
 
-## guioxide sur les deux machines
+## guioxide sur les trois machines
 
 - **Mac** : natif, Metal.
-- **Linux** : natif, Vulkan.
-- **Station RTX 2080 Ti** : Linux natif, Vulkan via le pilote NVIDIA. C'est la machine de
-  référence Linux : guioxide y est essayé à chaque jalon, en plus de la CI.
+- **Stations Linux (x86_64 et aarch64)** : natif, Vulkan via le pilote NVIDIA. La station
+  x86_64 reste la référence Linux : guioxide y est essayé à chaque jalon, en plus de la CI.
 
 ## Ordre conseillé
 
