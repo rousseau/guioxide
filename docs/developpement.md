@@ -17,7 +17,7 @@ elles sont rapatriées depuis un stockage S3 commun, traitées en local, puis re
 |---|---|---|---|
 | Tests CPU | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 | Linux x86_64, macOS arm64 (CI) ; Linux aarch64 |
 | Toolchain | **1.99.1** ([PR #7](https://github.com/rousseau/medoxide/pull/7)) | **1.99.1** ([PR #1](https://github.com/rousseau/surfoxide/pull/1)) | **1.99.1** ([PR #1](https://github.com/rousseau/gyroxide/pull/1)) |
-| Burn | `0.22.0-pre.4`, `wgpu` | `0.22.0`, features `wgpu` / `cuda` | `0.21.0`, `wgpu` par défaut, `cuda` prévu (non testé) |
+| Burn | **0.22.1**, `wgpu` | **0.22.1**, features `wgpu` / `cuda` | **0.22.1**, `wgpu` par défaut, `cuda` prévu (non testé) ; CPU NdArray f64 |
 | CI | fmt, clippy, test (tests sur données locales sautés en CI) ; ubuntu + macos | fmt, clippy, test, selftest ; ubuntu + macos | fmt, clippy, test ; ubuntu + macos |
 
 ## Ce qu'il faut harmoniser
@@ -50,11 +50,16 @@ Sous Linux aarch64, `--features cuda` exige de lier avec `lld` (`-C link-arg=-fu
 le lieur GNU ne résout pas les symboles du LLVM statique embarqué par `cubecl-llvm`. Sous
 Linux x86_64, `rust-lld` est déjà le lieur par défaut.
 
-### 3. Burn : converger vers une même version stable
+### 3. Burn : une même version stable, montée ensemble
 
-Pas bloquant pour guioxide, qui ne lie pas Burn. Mais trois versions dont une pré-version
-font diverger les comportements (wgpu, CubeCL) entre outils. Cible : la même version stable
-de Burn dans les trois outils, mise à jour ensemble.
+Fait en novembre 2026 : Burn 0.22.1 (CubeCL 0.11.3) dans les trois outils. Pas bloquant pour
+guioxide, qui ne lie pas Burn, mais des versions différentes font diverger les comportements
+(wgpu, CubeCL) entre outils. Règle : une montée de version se fait dans les trois dépôts à la
+fois, chacun avec son critère de validation fixé avant (mêmes tests ; pour gyroxide, une
+simulation de référence identique sur CPU).
+
+Reste à faire : le backend CPU de gyroxide est encore NdArray en f64, déprécié depuis Burn
+0.22 ; il passera à `flex` en f64, comme medoxide et surfoxide.
 
 ### 4. CI identique dans les quatre dépôts
 
@@ -110,4 +115,4 @@ le contrat de données tient.
 1. Épingler la même toolchain et poser la même CI (une PR par dépôt).
 2. Constituer le jeu de test.
 3. Aligner les sorties sur le contrat (issues de [issues/](issues/)).
-4. Converger les versions de Burn, quand un outil fait de toute façon une mise à jour.
+4. ~~Converger les versions de Burn~~ (fait, 0.22.1) ; les monter ensemble par la suite.
