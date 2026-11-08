@@ -67,7 +67,7 @@ en 4 ms. Fluidité dans la fenêtre : à confirmer à la main.
 Dépend des issues medoxide.
 
 *État* : fait. Depuis medoxide `f2fbcb6` (21 oct. 2026), vérifié **sans conversion** sur les sorties de
-`medx fetalbet / svr recon / bounti --bids` (sub-0104 de Marseille), lues par `medoxide_core::sorties`.
+`medx fetalbet / svr recon / bounti --bids` (un sujet du jeu de développement), lues par `medoxide_core::sorties`.
 Avant cela : sorties réelles converties au format du contrat ; mouvement par coupe identique au calcul numpy/nibabel (`cargo run --release -p
 guioxide-data --example svr`). Les sorties du contrat ne seront produites telles quelles qu'après les
 issues [medoxide#2 à #5](https://github.com/rousseau/medoxide/issues). Reportés : mode « comparer 2
