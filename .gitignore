@@ -1,2 +1,5 @@
 target/
 .DS_Store
+
+# Fichier de travail privé, rangé dans le dépôt privé oxide (lien créé par setup/install.sh)
+docs/ROADMAP.md
