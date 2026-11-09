@@ -4,6 +4,8 @@ Chaque jalon se termine par une version utilisable et testée en CI sur Linux et
 commence par un **visualiseur** (guioxide lit les fichiers produits) ; le lancement des outils
 vient en dernier.
 
+Le plan de travail détaillé (phases, mesures) est tenu hors de ce dépôt.
+
 ## Jalon 0 — Contrat de données
 
 - [ ] Relire et valider [donnees.md](donnees.md) avec les trois outils.
