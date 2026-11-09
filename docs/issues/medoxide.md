@@ -2,7 +2,7 @@
 
 > **Toutes faites** (21 oct. 2026, medoxide `8ab49a6` … `f2fbcb6`) : mode `--bids` de fetalbet, du SVR et de
 > bounti, `motion.tsv`, `slicequality.tsv` (avec `excluded`, `reason`), affine des piles, lecteurs
-> `medoxide_core::sorties`. Vérifié de bout en bout sur sub-0104 (jeu `dev-guioxide/marseille-sub-0104-medx`).
+> `medoxide_core::sorties`. Vérifié de bout en bout sur un sujet du jeu de développement (jeu `dev-guioxide/<sujet>-medx`).
 
 Contexte commun à coller en tête de chaque issue :
 
