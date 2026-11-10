@@ -11,6 +11,8 @@ Le plan de travail détaillé (phases, mesures) est tenu hors de ce dépôt.
 - [ ] Relire et valider [donnees.md](donnees.md) avec les trois outils.
 - [ ] Ouvrir les issues de [issues/](issues/) sur medoxide, surfoxide, gyroxide.
 - [ ] Constituer le **jeu de test** (voir [developpement.md](developpement.md)).
+      *Avancement (10 novembre 2026)* : jeu fantôme construit par `scripts/jeu-test/`, contrat numéroté (1.0) et testé,
+      tests visuels et banc de fluidité écrits ; publication du jeu en attente.
 
 *Fin* : le contrat est fusionné ; chaque ligne « à adapter » ou « proposé » a son issue.
 
