@@ -27,3 +27,28 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --release
       - run: cargo build --release -p guioxide
+
+  # Tests visuels et contrat sur le jeu de test fantôme (docs/donnees.md, scripts/jeu-test/). Ne tourne qu'une fois le jeu
+  # publié (décision du responsable) : variable de dépôt GUIOXIDE_JEU_PUBLIE = oui, et GUIOXIDE_JEU_URL si l'adresse change.
+  visuel:
+    if: ${{ vars.GUIOXIDE_JEU_PUBLIE == 'oui' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Écran virtuel et pilote Vulkan logiciel (lavapipe)
+        run: sudo apt-get update && sudo apt-get install -y xvfb mesa-vulkan-drivers libxkbcommon-x11-0
+      - name: Jeu de test
+        run: scripts/jeu-test/telecharger.sh "$RUNNER_TEMP/jeu-test"
+        env:
+          GUIOXIDE_JEU_URL: ${{ vars.GUIOXIDE_JEU_URL }}
+      - name: Contrat de données
+        run: cargo test --release -p guioxide-bids --test contrat -- --ignored
+        env:
+          GUIOXIDE_JEU: ${{ runner.temp }}/jeu-test/jeu
+      - name: Tests visuels
+        run: xvfb-run -a cargo test --release -p guioxide --test visuel -- --ignored
+        env:
+          GUIOXIDE_JEU: ${{ runner.temp }}/jeu-test/jeu
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
