@@ -52,3 +52,9 @@ jobs:
         env:
           GUIOXIDE_JEU: ${{ runner.temp }}/jeu-test/jeu
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+      - name: Captures (si les tests visuels échouent)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-visuel
+          path: /tmp/guioxide-visuel-*/*.png
