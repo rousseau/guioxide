@@ -9,7 +9,7 @@
 # donnée de patiente. Il n'est jamais dans git.
 set -euo pipefail
 ARCHIVE=fantome-guioxide-v1.tar.gz
-URL=${GUIOXIDE_JEU_URL:-https://huggingface.co/rousseau/guioxide-jeu-test/resolve/main/$ARCHIVE}
+URL=${GUIOXIDE_JEU_URL:-https://huggingface.co/datasets/rousseau/guioxide-jeu-test/resolve/main/$ARCHIVE}
 SHA256=${GUIOXIDE_JEU_SHA256:-e27686b818d8e811e18d47e58c2ef11fc2071717384706d4841fa8f5124e1273}
 DOSSIER=${1:-$HOME/.cache/guioxide/jeu-test}
 mkdir -p "$DOSSIER"
