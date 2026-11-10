@@ -48,7 +48,7 @@ jobs:
         env:
           GUIOXIDE_JEU: ${{ runner.temp }}/jeu-test/jeu
       - name: Tests visuels
-        run: xvfb-run -a cargo test --release -p guioxide --test visuel -- --ignored
+        run: xvfb-run -a -s "-screen 0 1920x1200x24" cargo test --release -p guioxide --test visuel -- --ignored
         env:
           GUIOXIDE_JEU: ${{ runner.temp }}/jeu-test/jeu
           VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
