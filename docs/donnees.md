@@ -4,6 +4,10 @@ Ce document fixe **ce que chaque outil écrit et ce que guioxide lit** : chemins
 formats, repères. C'est le seul couplage entre les quatre dépôts. Une modification ici se
 fait par PR, relue côté outil et côté guioxide.
 
+**Version du contrat : 1.0** (10 novembre 2026). Elle monte (1.1, 2.0…) quand un fichier « existant » change de nom,
+de colonne ou de sens ; le test `crates/guioxide-bids/tests/contrat.rs` la vérifie contre ce texte et lit chaque fichier
+« existant » sur le jeu de test fantôme (`scripts/jeu-test/`).
+
 Statut de chaque ligne : **existant** (déjà écrit ainsi par l'outil), **à adapter** (l'outil
 écrit autre chose aujourd'hui), **proposé** (n'existe pas encore).
 
@@ -19,7 +23,9 @@ Statut de chaque ligne : **existant** (déjà écrit ainsi par l'outil), **à ad
 - **Chaque dossier `<pipeline>/` contient un `dataset_description.json`** avec
   `DatasetType: "derivative"` et `GeneratedBy` (nom, version, et si possible commit et ligne
   de commande). guioxide en lit la version pour l'afficher dans la barre de provenance.
-  *Statut : proposé pour les trois outils.*
+  *Statut : **existant** pour `medx-fetalbet`, `medx-svr`, `medx-bounti`, `surfx-surfaces` et `gyroxide` (vérifié le
+  10 novembre 2026 sur le jeu fantôme : `DatasetType: derivative`, `GeneratedBy` avec `Name`, `Version`, `Commit`, `CodeURL`,
+  `CommandLine`).*
 - **Noms de fichiers** : on garde les entités de la source (`sub`, `ses`, `acq`, `run`) et on
   ajoute `desc-<…>` pour décrire la dérivée.
 - **Images** : NIfTI (`.nii.gz`). Affine : `sform`, sinon `qform` (voir architecture).
@@ -39,7 +45,7 @@ Statut de chaque ligne : **existant** (déjà écrit ainsi par l'outil), **à ad
 | `participants.tsv` | liste des sujets | BIDS |
 | `sub-*/sub-*_sessions.tsv` (colonne `session_id`), ou `participants.tsv` pour un jeu sans sessions : colonne `ga_weeks` | affichage AG (SA) | **existant** (`fetal-crl2025`) ; même nom que dans `sequence.tsv` de gyroxide |
 | `sub-*/ses-*/anat/*_T2w.nii.gz` | piles acquises (une par fichier, `acq-`/`run-` pour les distinguer) | BIDS |
-| `derivatives/*/dataset_description.json` | dérivées présentes, versions | proposé |
+| `derivatives/*/dataset_description.json` | dérivées présentes, versions | **existant** (medoxide `8e7d679`, surfoxide `78f0f23`, gyroxide `7ec21a2`) |
 
 Si l'utilisateur dépose un dossier `sub-*`, `ses-*` ou plus bas, guioxide remonte jusqu'au premier
 parent contenant un `dataset_description.json` de jeu brut (ceux des dérivées, `DatasetType:
