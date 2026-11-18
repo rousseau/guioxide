@@ -178,6 +178,295 @@ guioxide n'écrit que ses propres annotations, jamais dans les dérivées des ou
 "outil": "<nom version>"}`, `outil` étant lu dans le `GeneratedBy` de la dérivée validée. Une étape
 absente n'est pas encore évaluée. (Décidé le 20 oct. 2026.)
 
+## 5 · Description des outils — `--describe` (schéma `oxide-describe/1`)
+
+**Statut : proposé (E58, 18 novembre 2026), à valider avant tout code dans les trois outils.**
+
+guioxide ne code rien en dur d'une population : ce qu'une commande lit, écrit, accepte comme paramètres et demande
+comme ressources, l'outil le dit lui-même. `medx --describe`, `surfx --describe` et `gyroxide --describe` impriment un
+document JSON sur la sortie standard et sortent avec le code 0, sans rien lire ni écrire d'autre (ni poids, ni GPU,
+ni jeu de données). Les profils de guioxide (P1, partie B) y relient les sorties aux étapes et à l'affichage.
+
+### Règles
+
+- **Version.** `schema` vaut `"oxide-describe/1"`. On ajoute des champs sans changer la version (un lecteur ignore ce qu'il
+  ne connaît pas) ; on monte à `/2` quand un champ change de nom, de sens ou disparaît. `contract` donne la version
+  du contrat de données (en-tête de ce document) que l'outil respecte.
+- **Portée.** Seules les commandes qui ont un mode BIDS (`--bids`, `--participant`) sont décrites : ce sont celles que
+  guioxide peut lancer et dont il retrouve les sorties. Les commandes de mise au point ou de mesure (`info`,
+  `simulate`, `eval`, `device`, `compare`…) n'y figurent pas.
+- **Clés en anglais**, comme `status.json` ; les textes d'aide gardent la langue de l'outil (celle de clap).
+- **Motifs de chemin.** Un motif est relatif à la base de la commande : la racine BIDS pour une entrée `pipeline: null`,
+  sinon `<étude>/derivatives/<pipeline>/`. Marques : `{sub}`, `{ses}`, `{acq}`, `{run}` (entités BIDS) ; `{x}` où `x` est
+  l'identifiant d'un paramètre (sa valeur) ; `[…]` est un groupe facultatif, supprimé si une marque qu'il contient n'a pas de
+  valeur (jeu sans session, pile sans `acq`). Le motif est la **seule** source du chemin : le code d'écriture de l'outil le
+  construit à partir de la même table (voir « Vérification »).
+- **Cardinalité.** `session` : un fichier par session ; `per_acquisition` : un fichier par acquisition brute de la
+  session (un fichier `…[_acq-A][_run-N]_T2w.nii.gz`), `{acq}` et `{run}` prennent ceux de cette acquisition.
+- **Développement d'une marque** (`expand`) : `{"hemi": {"param": "hemi", "all": ["L", "R"]}}` signifie que `{hemi}` prend la
+  valeur du paramètre `hemi` s'il est donné, toutes les valeurs de `all` sinon (sans `all`, la valeur du paramètre, défaut compris).
+- **Série** (`series`) : le nombre de fichiers n'est pas fixé (`{step}`, 7 chiffres) ; `index_output` désigne la sortie
+  de nature `table` qui les énumère.
+
+### Document
+
+```
+{ "schema": "oxide-describe/1",
+  "contract": "1.0",
+  "tool": { "name", "version", "commit"|null, "code_url" },
+  "commands": [ Commande, … ] }
+```
+
+**Commande**
+
+| Champ | Contenu | Origine |
+|---|---|---|
+| `id` | identifiant stable (`svr.recon`, `run`, `mesh`) | table |
+| `argv` | mots à placer après le binaire (`["svr", "recon"]`) | clap (chemin de la sous-commande) |
+| `summary` | résumé d'une ligne | clap (`about`, première phrase) |
+| `stage` | étape générique nourrie : `acquisition`, `reconstruction`, `segmentation`, `surfaces`, `measures`, `simulation` ; le profil peut la réaffecter | table |
+| `pipeline` | dossier des dérivées (`medx-svr`) ; vaut le `Name` du `dataset_description.json` | constante `PIPELINE_*` du code d'écriture |
+| `generated_by` | `Name` écrit dans `GeneratedBy` (`medx svr recon`) : relie un dossier de dérivées à sa commande | table |
+| `bids` | `{"mode": "required" \| "supported", "root": "--bids", "participant": "--participant", "session": "--session", "output_dir": "--output-dir"}` ; ces quatre arguments sont ceux de clap, dont guioxide fait la ligne de commande BIDS | clap (identifiants `bids`, `participant`, `session`, `output_dir`) + table pour `mode` ; `extra_required` : autres paramètres que clap exige seulement avec `--bids` (`label` pour `gyroxide run`), table |
+| `inputs` | entrées (voir ci-dessous) | table |
+| `outputs` | sorties (voir ci-dessous) | table |
+| `parameters` | paramètres (voir ci-dessous) | clap, complété par la table |
+| `presets` | jeux de valeurs nommés ; `default_preset` : celui que guioxide applique en mode BIDS si l'opérateur n'en choisit pas | table |
+| `resources` | `{"gpu": "none" \| "optional" \| "required", "device_param": "device" \| null, "memory_gb": null \| {"typical": n}}` | table (`memory_gb` : seulement une valeur mesurée, sinon `null`) |
+| `progress` | `{"pattern": …, "format": "status-json"}` (le `status.json` de la section 4) ou `null` tant que la commande n'en écrit pas | table |
+
+**Entrée** : `{"id", "nature", "pipeline": null | "<dérivée>", "pattern", "cardinality", "count": "one" | "many", "required"}`.
+`count: "many"` : tous les fichiers qui correspondent (`--input` restreint la liste).
+
+**Sortie** : `{"id", "nature", "pattern", "required", "cardinality", "expand"?, "series"?, "table"?, "contents"?}`.
+- `nature` : `volume`, `mask`, `labels`, `surface`, `field` (carte par sommet, `.shape.gii`), `table` (TSV), `mesh`
+  (maillage volumique `.vtu`), `metadata` (JSON voisin), `run` (dossier d'une simulation). Elle décide de l'affichage ;
+  le format du fichier reste celui de la section « Règles communes ».
+- `required` : la commande écrit cette sortie à chaque exécution réussie dans le cas décrit (c'est ce que le test de
+  l'outil vérifie). Une sortie facultative (`false`) ne conditionne pas l'état d'avancement.
+- `table` (nature `labels`) : identifiant de la sortie `table` qui donne les étiquettes (`index`, `name`, `abbreviation`,
+  `color`) : guioxide lit la table que l'outil écrit, il n'en code aucune.
+- `contents` (nature `run`) : sorties imbriquées, motifs relatifs au dossier du run.
+
+**Paramètre** : `{"id", "flag", "type", "default", "optional", "list"?, "choices"?, "min"?, "max"?, "unit"?, "level", "help"}`.
+- `choices` : les valeurs de `ValueEnum` de clap ; quand l'outil n'a qu'un analyseur `FromStr` (`--hemi` de surfx), la table les donne.
+- `type` : `number`, `integer`, `boolean` (drapeau), `string`, `path`, `enum` (alors `choices`). Pour clap : `f64` → `number`,
+  entiers → `integer`, `bool` → `boolean`, `PathBuf` → `path`, `ValueEnum` → `enum`.
+- `flag` : `--alpha`. `id` : l'identifiant clap (`min_stack_coverage`). `default` : la valeur par défaut de clap, `null` s'il n'y en a pas
+  (la valeur dépend alors de la machine ou de l'entrée, ce que dit `help`).
+- Ligne de commande d'une valeur : drapeau seul pour un booléen vrai ; sinon `flag valeur` ; pour une liste (`list: true`),
+  `flag v1 v2 …`. Le paramètre n'est écrit que s'il diffère du défaut.
+- `min`, `max`, `unit` : seulement s'ils sont connus de l'outil (clap n'en a pas) ; absents sinon, jamais devinés.
+- `level` : `basic` (affiché d'emblée dans un formulaire) ou `advanced` (replié) ; tout est `advanced` sauf la liste `basic` de la table.
+- Ne figurent **pas** parmi les paramètres : les quatre arguments BIDS ci-dessus, et les chemins du mode libre
+  (`--input`, `--output`, `--mask`…) : la table les range en `free_io`.
+
+### Exemples
+
+Les exemples sont ceux que produirait l'outil, les listes de paramètres étant abrégées (`medx svr recon` a 44 arguments
+clap ; le test de l'étape de code vérifie que le document réel les contient tous). Valeurs par défaut lues sur les binaires
+compilés (medx, surfx, gyroxide 0.1.0).
+
+**`medx svr recon`**
+
+```json
+{
+  "id": "svr.recon",
+  "argv": ["svr", "recon"],
+  "summary": "Reconstruit un volume 3D à partir de stacks 2D (IRM fœtale) : estime le mouvement de chaque coupe, puis reconstruit",
+  "stage": "reconstruction",
+  "pipeline": "medx-svr",
+  "generated_by": "medx svr recon",
+  "bids": {"mode": "supported", "root": "--bids", "participant": "--participant", "session": "--session", "output_dir": "--output-dir"},
+  "inputs": [
+    {"id": "stacks", "nature": "volume", "pipeline": null,
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}][_acq-{acq}][_run-{run}]_T2w.nii.gz",
+     "cardinality": "per_acquisition", "count": "many", "required": true},
+    {"id": "masks", "nature": "mask", "pipeline": "medx-fetalbet",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}][_acq-{acq}][_run-{run}]_desc-brain_mask.nii.gz",
+     "cardinality": "per_acquisition", "count": "many", "required": true}
+  ],
+  "outputs": [
+    {"id": "volume", "nature": "volume", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-svr_T2w.nii.gz"},
+    {"id": "volume_sidecar", "nature": "metadata", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-svr_T2w.json"},
+    {"id": "motion", "nature": "table", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-svr_motion.tsv"},
+    {"id": "slicequality", "nature": "table", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-svr_slicequality.tsv"}
+  ],
+  "parameters": [
+    {"id": "motion", "flag": "--motion", "type": "enum", "choices": ["s2s", "s2v"], "default": "s2s", "optional": true, "level": "basic", "help": "Estimation du mouvement"},
+    {"id": "device", "flag": "--device", "type": "enum", "choices": ["wgpu", "cpu", "cuda"], "default": null, "optional": true, "level": "advanced", "help": "Où se font les calculs. Par défaut : le CPU de la machine, choix fait par algorithme (le GPU est aujourd'hui plus lent)"},
+    {"id": "resolution_mm", "flag": "--resolution-mm", "type": "number", "default": 0.8, "min": 0, "unit": "mm", "optional": true, "level": "basic", "help": "Côté des voxels du volume reconstruit, en mm"},
+    {"id": "alpha", "flag": "--alpha", "type": "number", "default": 0.05, "min": 0, "optional": true, "level": "basic", "help": "Poids de la régularisation (lissage)"},
+    {"id": "min_stack_coverage", "flag": "--min-stack-coverage", "type": "integer", "default": 2, "min": 1, "optional": true, "level": "advanced", "help": "Nombre minimal de stacks qui doivent atteindre un voxel pour qu'il soit reconstruit"},
+    {"id": "s2s_sweeps", "flag": "--s2s-sweeps", "type": "integer", "default": 3, "min": 1, "optional": true, "level": "advanced", "help": "Avec `--motion s2s` : nombre de balayages de toutes les coupes"}
+  ],
+  "presets": [
+    {"id": "s2v", "label": "Coupe-volume", "params": {"motion": "s2v"}}
+  ],
+  "default_preset": null,
+  "resources": {"gpu": "optional", "device_param": "device", "memory_gb": null},
+  "progress": null
+}
+```
+
+(Le préréglage `s2v` est un exemple : son contenu réel se décide avec le propriétaire de l'outil à l'étape de code, et chaque
+préréglage doit être accepté tel quel par clap, ce que le test vérifie.)
+
+**`surfx run`**
+
+```json
+{
+  "id": "run",
+  "argv": ["run"],
+  "summary": "Surfaces blanche et piale de chaque hémisphère, épaisseur corticale et rapport de contrat",
+  "stage": "surfaces",
+  "pipeline": "surfx-surfaces",
+  "generated_by": "surfx run",
+  "bids": {"mode": "supported", "root": "--bids", "participant": "--participant", "session": "--session", "output_dir": "--output-dir"},
+  "inputs": [
+    {"id": "segmentation", "nature": "labels", "pipeline": "medx-bounti",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-bounti_dseg.nii.gz",
+     "cardinality": "session", "count": "one", "required": true}
+  ],
+  "outputs": [
+    {"id": "white", "nature": "surface", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_white.surf.gii"},
+    {"id": "pial", "nature": "surface", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_pial.surf.gii"},
+    {"id": "curv", "nature": "field", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_curv.shape.gii"},
+    {"id": "sulc", "nature": "field", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_sulc.shape.gii"},
+    {"id": "thickness", "nature": "field", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_thickness.shape.gii"},
+    {"id": "cortex", "nature": "field", "required": true, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_cortex.shape.gii"},
+    {"id": "report", "nature": "metadata", "required": false, "cardinality": "session",
+     "expand": {"hemi": {"param": "hemi", "all": ["L", "R"]}},
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_report.json"},
+    {"id": "surfqc", "nature": "table", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_desc-surfqc.tsv"}
+  ],
+  "parameters": [
+    {"id": "labels", "flag": "--labels", "type": "enum", "choices": ["bounti19", "multibounti43"], "default": "bounti19", "optional": true, "level": "basic", "help": "Table de labels : bounti19 ou multibounti43"},
+    {"id": "hemi", "flag": "--hemi", "type": "enum", "choices": ["L", "R"], "default": null, "optional": true, "level": "basic", "help": "Hémisphère (L ou R) ; les deux par défaut"},
+    {"id": "sigma", "flag": "--sigma", "type": "number", "default": 0.25, "min": 0, "unit": "mm", "optional": true, "level": "advanced", "help": "Écart-type (mm) du flou de la distance signée avant extraction"},
+    {"id": "edge", "flag": "--edge", "type": "number", "default": 0.5, "min": 0, "unit": "mm", "optional": true, "level": "advanced", "help": "Longueur d'arête visée par le remaillage isotrope (mm) ; 0 : pas de remaillage"},
+    {"id": "min_thickness", "flag": "--min-thickness", "type": "number", "default": 0.02, "min": 0, "unit": "mm", "optional": true, "level": "advanced", "help": "Distance minimale exigée entre surface blanche et piale (mm)"}
+  ],
+  "presets": [],
+  "default_preset": null,
+  "resources": {"gpu": "none", "device_param": null, "memory_gb": null},
+  "progress": null
+}
+```
+
+**`gyroxide run`**
+
+```json
+{
+  "id": "run",
+  "argv": ["run"],
+  "summary": "Runs a simulation.",
+  "stage": "simulation",
+  "pipeline": "gyroxide",
+  "generated_by": "gyroxide run",
+  "bids": {"mode": "supported", "root": "--bids", "participant": "--participant", "session": "--session", "output_dir": "--output-dir", "extra_required": ["label"]},
+  "inputs": [
+    {"id": "mesh", "nature": "mesh", "pipeline": "gyroxide",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/sub-{sub}[_ses-{ses}]_hemi-{hemi}_desc-{mesh_desc}_tet.vtu",
+     "expand": {"hemi": {"param": "hemi"}},
+     "cardinality": "session", "count": "one", "required": true}
+  ],
+  "outputs": [
+    {"id": "run", "nature": "run", "required": true, "cardinality": "session",
+     "pattern": "sub-{sub}[/ses-{ses}]/anat/run-{label}/",
+     "contents": [
+       {"id": "config", "nature": "metadata", "required": true, "pattern": "config.toml"},
+       {"id": "status", "nature": "metadata", "required": true, "pattern": "status.json"},
+       {"id": "sequence", "nature": "table", "required": true, "pattern": "sequence.tsv"},
+       {"id": "surfaces", "nature": "surface", "required": true,
+        "expand": {"hemi": {"param": "hemi"}},
+        "series": {"placeholder": "step", "index_output": "sequence"},
+        "pattern": "sub-{sub}[_ses-{ses}]_hemi-{hemi}_desc-sim_step-{step}_pial.surf.gii"}
+     ]}
+  ],
+  "parameters": [
+    {"id": "label", "flag": "--label", "type": "string", "default": null, "optional": true, "level": "basic", "help": "Run label (letters and digits): run-<label>/."},
+    {"id": "mesh_desc", "flag": "--mesh-desc", "type": "string", "default": "tetgen", "optional": true, "level": "advanced", "help": "desc- entity of the default session mesh in BIDS mode."},
+    {"id": "preset", "flag": "--preset", "type": "string", "default": "tallinen2016", "optional": true, "level": "basic", "help": "Parameter preset."},
+    {"id": "hemi", "flag": "--hemi", "type": "enum", "choices": ["L", "R"], "default": "L", "optional": true, "level": "basic", "help": "Hemisphere of the surface (GIfTI AnatomicalStructurePrimary, BIDS hemi- entity)."},
+    {"id": "steps", "flag": "--steps", "type": "integer", "default": null, "min": 1, "optional": true, "level": "basic", "help": "Stop after this many steps (default: until t_end)."},
+    {"id": "surface_every", "flag": "--surface-every", "type": "integer", "default": 0, "min": 0, "optional": true, "level": "advanced", "help": "Write the surface (GIfTI, image space in mm: inverse of the mesh normalisation) every N steps (0 = only the final surface)."},
+    {"id": "growth_field", "flag": "--growth-field", "type": "string", "default": null, "optional": true, "level": "advanced", "help": "Growth mask gr read from a node field of the initial .vtu, e.g. `cortex`"},
+    {"id": "no_midplane", "flag": "--no-midplane", "type": "boolean", "default": false, "optional": true, "level": "advanced", "help": "No midplane. Needed for a session hemisphere"},
+    {"id": "backend", "flag": "--backend", "type": "enum", "choices": ["auto", "wgpu", "cuda", "ndarray"], "default": "auto", "optional": true, "level": "advanced", "help": "The fastest the machine offers…"}
+  ],
+  "presets": [
+    {"id": "session-hemisphere", "label": "Hémisphère d'une session", "params": {"growth_field": "cortex", "no_midplane": true}}
+  ],
+  "default_preset": "session-hemisphere",
+  "resources": {"gpu": "optional", "device_param": "backend", "memory_gb": null},
+  "progress": {"pattern": "sub-{sub}[/ses-{ses}]/anat/run-{label}/status.json", "format": "status-json"}
+}
+```
+
+Le document complet d'un outil enveloppe ces commandes : `{"schema": "oxide-describe/1", "contract": "1.0",
+"tool": {"name": "gyroxide", "version": "0.1.0", "commit": "7ec21a2", "code_url": "https://github.com/rousseau/gyroxide"},
+"commands": [ … ]}`.
+
+### D'où vient chaque champ
+
+- **clap** (`CommandFactory`, au moment de `--describe`, aucun texte copié) : `argv`, `summary`, `parameters` (`id`, `flag`,
+  `type`, `default`, `choices`, `optional`, `list`, `help`), présence des arguments `bids`, `participant`, `session`, `output_dir`.
+- **Table des sorties**, une par outil, dans le code qui écrit (`medoxide-svr::sortie`, `surfoxide-io::bids`,
+  `gyroxide-io`) : `id`, `stage`, `pipeline`, `generated_by`, `bids.mode`, `inputs`, `outputs`, `presets`, `resources`,
+  `progress`, `basic`, `free_io`, bornes et unités des paramètres. Les motifs y sont les chaînes à partir desquelles le code
+  d'écriture construit ses chemins.
+- **Constantes de compilation** : `tool.version` (`CARGO_PKG_VERSION`), `tool.commit` (`MEDX_COMMIT`, `SURFX_COMMIT`…, la variable que
+  lit déjà `GeneratedBy`, `null` si absente), `tool.code_url`, `schema`, `contract`.
+
+### Vérification
+
+- À chaque `cargo test` : pour chaque sortie déclarée, le motif résolu sur un cas type (`sub-01`, `ses-01`, `acq-ax`, `run-1`)
+  est comparé au chemin que construit la fonction d'écriture existante (`fichiers_bids`, `bids::derivative_dir`…) ; chaque
+  préréglage passe l'analyse de clap ; chaque identifiant de paramètre de la table existe dans clap.
+- Test marqué `#[ignore]`, sur le jeu fantôme de P0 ou un cas minimal : l'outil tourne en mode BIDS, et chaque sortie
+  `required` du document est présente dans les dérivées.
+- Côté guioxide : un test lit les exemples ci-dessus (copiés dans `scripts/jeu-test/` à l'étape de code) avec le même lecteur que
+  guioxide, pour que le schéma ne dérive pas de ce texte.
+
+### Ce que fait Boutiques autrement, et pourquoi on s'en écarte
+
+D'après la spécification Boutiques (descripteur JSON : `command-line` en gabarit à clés `[CLÉ]`, `inputs` avec `value-key`
+et `command-line-flag`, `output-files` avec `path-template`, `container-image`, `suggested-resources`, `groups`, `error-codes`,
+`tests`) ; ces champs sont rappelés de mémoire, à revérifier avant publication.
+
+- **Pas de gabarit de ligne de commande.** Boutiques décrit une ligne par un gabarit écrit à la main ; ici la ligne se
+  déduit de clap (`flag valeur`), la même grammaire pour les trois outils, et l'outil ne peut pas décrire un drapeau qui
+  n'existe pas (le document est généré, pas rédigé).
+- **Sorties par motifs BIDS, pas par gabarits tirés des entrées.** Le `path-template` de Boutiques se construit à partir de
+  la valeur d'un paramètre ; ici la sortie se retrouve dans une étude par son pipeline et ses entités (`sub`, `ses`, `acq`, `run`),
+  y compris pour une session déjà traitée où aucune ligne de commande n'est rejouée.
+- **Nature et étape.** Boutiques ignore ce qu'est un fichier (volume, étiquettes, surface, champ, run) et à quelle étape
+  il appartient ; guioxide en a besoin pour afficher et déduire l'avancement.
+- **Mode BIDS et mode libre.** Boutiques n'a qu'un mode ; ici les arguments BIDS et ceux du mode libre sont distingués.
+- **Pas d'image de conteneur, de tests ni de codes d'erreur** : binaires natifs (Docker est hors du chemin des outils), tests dans
+  les dépôts, code de sortie 0 ou non nul.
+- **Ajouts propres à l'écosystème** : ressources GPU, fichier de progression, préréglages avec défaut, séries de sorties.
+- Ce qu'on garde : identifiants, types, défauts, bornes, choix énumérés, groupe de ressources. Un export vers Boutiques reste
+  possible plus tard ; il n'est pas livré.
+
 ## Évolutions prévues
 
 - **Multi-contraste** : l'entité de suffixe (`T2w`, `T1w`, …) est conservée dans tous les
