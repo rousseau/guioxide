@@ -57,18 +57,28 @@ fn main() -> eframe::Result {
             std::process::exit(2);
         }
     };
-    if let Some(chemin) = &options_guioxide.capture {
-        capture::surveiller(chemin.clone());
-    }
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("guioxide")
-            .with_inner_size([1400.0, 900.0])
-            .with_min_inner_size([900.0, 600.0])
+            .with_inner_size(capture::TAILLE_FENETRE)
             .with_drag_and_drop(true),
         ..Default::default()
     };
-    eframe::run_native(
+    // `--capture` : rien de l'usage réel (taille et place de la fenêtre, récents, opérateur, dans `app.ron`) ne doit
+    // changer l'image. L'état se lit et s'écrit dans un dossier temporaire, effacé à la sortie, et la fenêtre n'est
+    // pas mémorisée ; pas de taille minimale, qui sur un écran à l'échelle 2 dépasserait la taille de capture.
+    let etat_capture = options_guioxide.capture.as_ref().map(|chemin| {
+        capture::surveiller(chemin.clone());
+        std::env::temp_dir().join(format!("guioxide-capture-{}", std::process::id()))
+    });
+    match &etat_capture {
+        Some(dossier) => {
+            options.persistence_path = Some(dossier.join("app.ron"));
+            options.persist_window = false;
+        }
+        None => options.viewport = options.viewport.with_min_inner_size([900.0, 600.0]),
+    }
+    let resultat = eframe::run_native(
         "guioxide",
         options,
         Box::new(|cc| {
@@ -76,5 +86,9 @@ fn main() -> eframe::Result {
             guioxide_view::polices::installer(&cc.egui_ctx);
             Ok(Box::new(app::Application::new(cc, options_guioxide)))
         }),
-    )
+    );
+    if let Some(dossier) = etat_capture {
+        let _ = std::fs::remove_dir_all(dossier);
+    }
+    resultat
 }

@@ -14,6 +14,13 @@ const STABLE: Duration = Duration::from_millis(1500);
 /// ou en veille, fenêtre masquée) et la boucle d'egui ne rend plus la main.
 const DELAI_MAX: Duration = Duration::from_secs(300);
 
+/// Attente maximale du redimensionnement de la fenêtre à la taille de capture.
+const ATTENTE_TAILLE: Duration = Duration::from_secs(5);
+
+/// Taille de la fenêtre à l'ouverture, en points ; aussi la taille en pixels des captures `--capture`, quelle que soit
+/// l'échelle de l'écran (voir [`Capture::a_l_echelle_un`]).
+pub const TAILLE_FENETRE: [f32; 2] = [1400.0, 900.0];
+
 /// Surveille une capture `--capture` depuis un autre fil : quitte en erreur si elle n'est pas écrite à temps.
 pub fn surveiller(chemin: PathBuf) {
     std::thread::spawn(move || {
@@ -50,6 +57,10 @@ pub struct Capture {
     pub quitter: bool,
     /// Capture automatique : attend que rien ne soit en cours de lecture depuis [`STABLE`].
     pub attendre: bool,
+    /// Capture à un pixel par point, fenêtre de cette taille en pixels ([`Capture::a_l_echelle_un`]).
+    echelle_un: Option<egui::Vec2>,
+    /// Moment où la taille en pixels de la fenêtre a été fixée (demandée si l'écran n'est pas à l'échelle 1).
+    redimension: Option<Instant>,
     stable_depuis: Option<Instant>,
     demandee: bool,
     pub resultat: Arc<Mutex<Option<Result<PathBuf, String>>>>,
@@ -61,15 +72,52 @@ impl Capture {
             chemin,
             quitter,
             attendre,
+            echelle_un: None,
+            redimension: None,
             stable_depuis: None,
             demandee: false,
             resultat: Default::default(),
         }
     }
 
+    /// Capture indépendante de l'écran (`--capture`, tests visuels) : un pixel par point, et une fenêtre de `taille`
+    /// pixels. Sur un écran à l'échelle 2 (Retina), la fenêtre ouverte à 1 400 × 900 points ferait 2 800 × 1 800 pixels ;
+    /// elle est ramenée à 1 400 × 900 pixels, avec le même rendu que sur un écran à l'échelle 1.
+    pub fn a_l_echelle_un(mut self, taille: [f32; 2]) -> Capture {
+        self.echelle_un = Some(taille.into());
+        self
+    }
+
+    /// Vrai quand la fenêtre est à son échelle et à sa taille de capture ([`Capture::a_l_echelle_un`]) ; sinon, fait le
+    /// pas suivant. Le zoom ne s'applique qu'à l'image suivante : d'abord l'échelle, puis la taille en pixels, puis
+    /// l'attente du redimensionnement (au plus [`ATTENTE_TAILLE`], si la fenêtre ne peut pas prendre cette taille).
+    pub fn echelle_prete(&mut self, ctx: &egui::Context) -> bool {
+        let Some(taille) = self.echelle_un else { return true };
+        if ctx.pixels_per_point() != 1.0 {
+            ctx.set_pixels_per_point(1.0);
+            ctx.request_repaint();
+            return false;
+        }
+        let depuis = *self.redimension.get_or_insert_with(|| {
+            if ctx.native_pixels_per_point().is_some_and(|n| n != 1.0) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(taille));
+            }
+            Instant::now()
+        });
+        if ctx.content_rect().size() != taille && depuis.elapsed() < ATTENTE_TAILLE {
+            ctx.request_repaint_after(Duration::from_millis(50));
+            return false;
+        }
+        true
+    }
+
     /// À chaque image : demande la capture quand c'est le moment (`occupe` : une lecture était en cours).
     pub fn suivre(&mut self, ctx: &egui::Context, occupe: bool) {
         if self.demandee {
+            return;
+        }
+        if !self.echelle_prete(ctx) {
+            self.stable_depuis = None;
             return;
         }
         if self.attendre {
