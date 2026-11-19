@@ -57,6 +57,7 @@ derivative`, sont ignorés). S'il dépose la racine d'un bucket, la racine BIDS 
 |---|---|---|
 | `medx-fetalbet/sub-X/ses-Y/anat/<entités de la pile, sans son suffixe>_desc-brain_mask.nii.gz` | masque cérébral d'une pile, même grille que la pile | **existant** (ex. `sub-X_ses-Y_acq-ax_run-1_T2w` → `sub-X_ses-Y_acq-ax_run-1_desc-brain_mask.nii.gz`) |
 | `medx-svr/sub-X/ses-Y/anat/sub-X_ses-Y_desc-svr_slicequality.tsv` | qualité par coupe (voir ci-dessous) ; motifs d'exclusion dont `hors_masque` | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
+| `medx-svr/…/sub-X_ses-Y_desc-acq_slicequality.tsv` et son `.json` voisin (`…_desc-acq_slicequality.json`) | QC des acquisitions avant reconstruction (voir ci-dessous) | **existant** (`medx svr qc --bids`), déclaré dans `medx --describe` (E58) |
 
 Colonnes de `slicequality.tsv` (reprend `write_quality` de `medoxide-svr`, en ajoutant le nom
 de pile et le motif d'exclusion) :
@@ -94,6 +95,7 @@ de pile et le motif d'exclusion) :
 | `medx-svr/…/sub-X_ses-Y_desc-svr_motion.tsv` | une ligne par coupe : `stack`, `slice`, puis la matrice 4×4 | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
 | `medx-svr/…/sub-X_ses-Y_desc-svr_slicequality.tsv` | voir étape 1 | **existant** |
 | `medx-bounti/sub-X/ses-Y/anat/sub-X_ses-Y_desc-bounti_dseg.nii.gz` | segmentation, même grille que le volume reconstruit | **existant** (medoxide `f2fbcb6`) |
+| `medx-bounti/…/sub-X_ses-Y_desc-bounti_mask.nii.gz` | masque du cerveau (`uint8`, 0 ou 1), même grille que la segmentation | **existant** (`medx bounti --bids`), absent du contrat avant E58 |
 | `medx-bounti/…/sub-X_ses-Y_desc-bounti_dseg.tsv` | table des étiquettes : `index`, `name`, `abbreviation`, `color` (19 étiquettes, couleurs de l'atlas KCL) | **existant** (medoxide `f2fbcb6`, `medx … --bids` ; lu par `medoxide_core::sorties`) |
 
 **Mouvement** (medoxide#3, fait) :
@@ -117,6 +119,8 @@ Convention de nommage des surfaces : celle des dérivées BIDS de surface (style
 | `…_hemi-{L,R}_pial.surf.gii` | surface piale (SG/LCS) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`) |
 | `…_hemi-{L,R}_midthickness.surf.gii` | surface médiane | proposé, optionnel |
 | `…_hemi-{L,R}_{curv,sulc,thickness}.shape.gii` | cartes par sommet ; `sulc` = profondeur DPF* (méthode dans les métadonnées GIfTI) ; signe de `curv` et `sulc` : **crêtes gyrales positives, fonds de sillons négatifs** (convention de l'atlas dHCP, opposée à FreeSurfer), écrit dans la métadonnée GIfTI `SignConvention` (décidé le 22 oct. 2026) | **existant** (surfoxide `dc02bf7`, `surfx run --bids` ; signe documenté `790e75b`) |
+| `…_hemi-{L,R}_cortex.shape.gii` | masque du cortex par sommet de la blanche (1 cortex, 0 face médiale : ventricules, noyaux gris) ; lu par `gyroxide mesh` | **existant** (`surfx run --bids`), absent du contrat avant E58 |
+| `…_hemi-{L,R}_report.json` | rapport de contrat de l'hémisphère (détail) | **existant**, facultatif (non requis par `--describe`) |
 | `…_desc-surfqc.tsv` | **le** contrôle des maillages, une ligne par surface : `surface`, `n_vertices`, `n_faces`, `euler`, `self_intersections`, `area_mm2`, `gi`, `mean_dist_to_seg_mm` ; `report.json` reste un détail facultatif (décidé le 20 oct. 2026) | **existant** (surfoxide `dc02bf7`, `surfx run --bids`), lu par `surfoxide_io::surfqc` |
 
 `hemi-` peut être omis si la surface couvre les deux hémisphères. GIfTI : intent
@@ -180,7 +184,28 @@ absente n'est pas encore évaluée. (Décidé le 20 oct. 2026.)
 
 ## 5 · Description des outils — `--describe` (schéma `oxide-describe/1`)
 
-**Statut : proposé (E58, 18 novembre 2026), à valider avant tout code dans les trois outils.**
+**Statut : validé par François le 18 novembre 2026 (les dix points), implémenté dans les trois outils (E58, 19 novembre
+2026 : branche `describe` de medoxide, surfoxide et gyroxide).** Les documents réels s'écartent des exemples ci-dessous
+sur ces points, que le code fait foi :
+
+- **Commandes décrites.** `medx` : `fetalbet`, `svr.qc`, `svr.recon`, `bounti` ; `surfx` : `run` ; `gyroxide` : `mesh` (mode
+  BIDS `required`) et `run`. Étapes : `fetalbet` → `segmentation`, `svr.qc` → `acquisition`, `svr.recon` → `reconstruction`,
+  `bounti` → `segmentation`, `run` (surfx) → `surfaces`, `mesh` et `run` (gyroxide) → `simulation`.
+- **Préréglages.** Seul `gyroxide run` en livre un (`session-hemisphere`, défaut) ; `medx` et `surfx` n'en ont aucun
+  (`presets: []`, `default_preset: null`) : leur contenu se décidera avec le besoin d'un profil, pas avant.
+- **Listes complètes.** Les paramètres du document sont **tous** les arguments clap de la commande hors BIDS et mode libre
+  (`medx svr recon` : toutes ses options, pas six) ; un test le vérifie. `min` n'est donné que pour les paramètres dont
+  l'outil connaît une borne (`resolution_mm`, `alpha`, `min_stack_coverage`, `sigma`, `edge`, `min_thickness`, `steps`,
+  `surface_every`).
+- **`surfx run`** : `report` est une sortie facultative ; `cortex` (masque du cortex) est une sortie requise, lue par `gyroxide mesh`.
+- **Sources des noms.** `medoxide_core::contrat`, `surfoxide_io::sorties` et `gyroxide_io::contrat` : le code d'écriture et
+  `--describe` en tirent les mêmes suffixes. Hors de ces tables, aucun nom de fichier de sortie n'est écrit dans les outils.
+- **JSON.** `medx` écrit le document avec `medoxide_core::json::Json` (pas de dépendance JSON dans medoxide).
+- **Vérification.** Dans chaque outil, un test compare les motifs aux chemins du code d'écriture, un autre (jeu de test)
+  vérifie que chaque sortie `required` est écrite : surfoxide (`crates/surfx/tests/describe_sorties.rs`, `#[ignore]`,
+  lance `surfx run` sur le jeu fantôme, `OXIDE_JEU_TEST`), medoxide (test `#[ignore]` de `crates/medx/src/describe.rs` sur
+  les dérivées du jeu fantôme, et que chaque fichier de ces dérivées est déclaré), gyroxide
+  (`crates/gyroxide-cli/tests/describe_sorties.rs`, petit run sur une boule, dans `cargo test`).
 
 guioxide ne code rien en dur d'une population : ce qu'une commande lit, écrit, accepte comme paramètres et demande
 comme ressources, l'outil le dit lui-même. `medx --describe`, `surfx --describe` et `gyroxide --describe` impriment un
