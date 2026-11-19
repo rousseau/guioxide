@@ -21,6 +21,7 @@ egui_plot.workspace = true
 serde_json.workspace = true
 egui-wgpu.workspace = true
 png.workspace = true
+pollster.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -8,6 +8,7 @@ use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
 
 use crate::capture::Capture;
+use crate::dialogue::Dialogue;
 use crate::etapes::Visualisation;
 use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Recent, Sortie};
 
@@ -15,6 +16,12 @@ use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Rece
 const CLE_RECENTS: &str = "recents";
 /// Clé du nom de l'opérateur (validation).
 const CLE_OPERATEUR: &str = "operateur";
+
+/// Ce qu'on fera du chemin choisi dans la fenêtre ouverte.
+enum Choix {
+    Jeu,
+    Capture,
+}
 
 /// Un onglet : l'écran d'ouverture ou une étape de la chaîne.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,6 +52,8 @@ pub struct Application {
     capture: Option<Capture>,
     /// Message de la barre de pied (capture enregistrée…).
     message: Option<String>,
+    /// Fenêtre de choix de fichier ouverte (une seule à la fois).
+    dialogue: Option<(Dialogue, Choix)>,
 }
 
 /// Options de la ligne de commande.
@@ -86,6 +95,7 @@ impl Application {
             session_initiale: session,
             capture: capture.map(|c| Capture::new(c, true, true)),
             message: None,
+            dialogue: None,
         };
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
@@ -103,8 +113,29 @@ impl Application {
     }
 
     fn choisir_dossier(&mut self, ctx: &egui::Context) {
-        if let Some(dossier) = rfd::FileDialog::new().set_title("Ouvrir un jeu BIDS").pick_folder() {
-            self.ouvrir(ctx, dossier, Sortie::Etude);
+        if self.dialogue.is_none() {
+            self.dialogue = Some((Dialogue::dossier(ctx, "Ouvrir un jeu BIDS"), Choix::Jeu));
+        }
+    }
+
+    /// Reçoit le chemin choisi dans la fenêtre de choix, une fois celle-ci fermée.
+    fn suivre_dialogue(&mut self, ctx: &egui::Context) {
+        let Some(resultat) = self.dialogue.as_ref().and_then(|(d, _)| d.resultat()) else {
+            return;
+        };
+        let Some((_, choix)) = self.dialogue.take() else {
+            return;
+        };
+        let Some(chemin) = resultat else {
+            return; // annulée
+        };
+        match choix {
+            Choix::Jeu => self.ouvrir(ctx, chemin, Sortie::Etude),
+            Choix::Capture => {
+                if self.capture.is_none() {
+                    self.capture = Some(Capture::new(chemin, false, false));
+                }
+            }
         }
     }
 
@@ -171,15 +202,12 @@ impl Application {
             self.choisir_dossier(ctx);
         }
         let capturer = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
-        if self.capture.is_none()
-            && ctx.input_mut(|i| i.consume_shortcut(&capturer))
-            && let Some(chemin) = rfd::FileDialog::new()
+        if self.capture.is_none() && self.dialogue.is_none() && ctx.input_mut(|i| i.consume_shortcut(&capturer)) {
+            let fenetre = rfd::AsyncFileDialog::new()
                 .set_title("Enregistrer une capture de la fenêtre")
                 .set_file_name(format!("guioxide-{}.png", maintenant_iso().replace(':', "-")))
-                .add_filter("PNG", &["png"])
-                .save_file()
-        {
-            self.capture = Some(Capture::new(chemin, false, false));
+                .add_filter("PNG", &["png"]);
+            self.dialogue = Some((Dialogue::enregistrer(ctx, fenetre), Choix::Capture));
         }
         if ctx.memory(|m| m.focused().is_some()) {
             return; // un champ de saisie a le focus : les chiffres lui reviennent
@@ -386,6 +414,7 @@ impl eframe::App for Application {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.suivre_chargement();
+        self.suivre_dialogue(&ctx);
         self.raccourcis(&ctx);
         egui::Panel::top("en_tete").show(ui, |ui| {
             ui.add_space(4.0);
