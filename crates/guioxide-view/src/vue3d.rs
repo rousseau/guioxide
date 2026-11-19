@@ -177,9 +177,21 @@ struct CleRendu {
     objets: Vec<(usize, usize, bool)>,
 }
 
+/// Cadrage automatique : ce sur quoi la caméra a été cadrée, et la caméra obtenue.
+#[derive(Clone, PartialEq)]
+struct Cadrage {
+    aspect: f32,
+    maillages: Vec<usize>,
+    camera: Camera,
+}
+
 #[derive(Default)]
 pub struct Vue3d {
     pub camera: Option<Camera>,
+    /// Dernier cadrage automatique : aspect de l'image, maillages cadrés et caméra obtenue. Tant que la caméra lui est
+    /// égale (ni glissée, ni zoomée, ni tournée vers une vue prédéfinie), elle est recadrée quand l'aspect ou les
+    /// maillages visibles changent.
+    cadrage: Option<Cadrage>,
     gpu: Option<Gpu>,
     cle: Option<CleRendu>,
     texture: Option<egui::TextureId>,
@@ -189,6 +201,29 @@ impl Vue3d {
     /// Recadre sur les objets visibles au prochain affichage.
     pub fn recadrer(&mut self) {
         self.camera = None;
+    }
+
+    /// Caméra de cette image : cadrée sur les objets si elle n'existe pas, ou recadrée si l'aspect ou les maillages
+    /// visibles ont changé depuis le dernier cadrage automatique et que l'utilisateur ne l'a pas touchée. Le premier
+    /// affichage tombe parfois sur une mise en page transitoire (fenêtre pas encore à sa taille), ou avant que tous les
+    /// maillages soient lus : sans cela, le cadrage en garderait l'aspect ou la boîte.
+    fn camera_pour(&mut self, objets: &[&Objet3d], aspect: f32) -> &mut Camera {
+        let maillages: Vec<usize> = objets.iter().map(|o| Arc::as_ptr(&o.maillage) as usize).collect();
+        let a_cadrer = match (self.camera, &self.cadrage) {
+            (None, _) => true,
+            (Some(c), Some(auto)) => c == auto.camera && (auto.aspect != aspect || auto.maillages != maillages),
+            (Some(_), None) => false,
+        };
+        if a_cadrer {
+            let camera = cadrer(objets, aspect);
+            self.cadrage = Some(Cadrage {
+                aspect,
+                maillages,
+                camera,
+            });
+            self.camera = Some(camera);
+        }
+        self.camera.as_mut().unwrap()
     }
 
     pub fn ui(
@@ -209,7 +244,7 @@ impl Vue3d {
             return reponse;
         }
         let aspect = rect.width() / rect.height().max(1.0);
-        let camera = self.camera.get_or_insert_with(|| cadrer(&visibles, aspect));
+        let camera = self.camera_pour(&visibles, aspect);
         interactions(ui, &reponse, rect, camera, &visibles, curseur);
         let camera = *camera;
 
@@ -698,6 +733,52 @@ mod tests {
         );
         let etroit = demi_champ_minimal(0.5);
         assert!(etroit < CHAMP / 2.0 && (etroit.tan() - (CHAMP / 2.0).tan() * 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn camera_recadree_tant_qu_elle_n_est_pas_touchee() {
+        let objet = Objet3d {
+            maillage: Arc::new(tetraedre()),
+            couleurs: Arc::new(vec![[255; 3]]),
+            visible: true,
+        };
+        let objets = [&objet];
+        let mut vue = Vue3d::default();
+        // Première image sur une mise en page transitoire (vue étroite), puis à sa taille (vue large).
+        let transitoire = *vue.camera_pour(&objets, 0.5);
+        let large = *vue.camera_pour(&objets, 2.0);
+        assert_eq!(large, cadrer(&objets, 2.0), "intacte : recadrée sur le nouvel aspect");
+        assert!(large.distance < transitoire.distance);
+        assert_eq!(*vue.camera_pour(&objets, 2.0), large, "même aspect : inchangée");
+        // Touchée (molette, glisser, vue prédéfinie) : un changement d'aspect ne la recadre plus.
+        vue.camera_pour(&objets, 2.0).distance *= 1.5;
+        let touchee = vue.camera.unwrap();
+        assert_eq!(*vue.camera_pour(&objets, 0.5), touchee);
+        // Caméra posée de l'extérieur (caméra partagée de la simulation) : gardée telle quelle.
+        let mut autre = Vue3d {
+            camera: Some(touchee),
+            ..Default::default()
+        };
+        assert_eq!(*autre.camera_pour(&objets, 2.0), touchee);
+        // Maillage arrivé après le premier cadrage (lecture asynchrone) : recadrée tant qu'elle est intacte.
+        let mut grand = tetraedre();
+        grand
+            .sommets
+            .iter_mut()
+            .for_each(|p| p.iter_mut().for_each(|c| *c *= 10.0));
+        let second = Objet3d {
+            maillage: Arc::new(grand),
+            ..objet.clone()
+        };
+        let mut lente = Vue3d::default();
+        let un_seul = *lente.camera_pour(&objets, 2.0);
+        let les_deux = *lente.camera_pour(&[&objet, &second], 2.0);
+        assert_eq!(les_deux, cadrer(&[&objet, &second], 2.0));
+        assert!(les_deux.distance > un_seul.distance);
+        // « recadrer » : cadrage automatique de nouveau.
+        vue.recadrer();
+        assert_eq!(*vue.camera_pour(&objets, 2.0), large);
+        assert_eq!(*vue.camera_pour(&objets, 0.5), transitoire);
     }
 
     #[test]

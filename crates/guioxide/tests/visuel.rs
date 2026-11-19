@@ -9,8 +9,10 @@
 //! GUIOXIDE_MAJ_REFERENCES=1 …   # réécrit les références au lieu de comparer
 //! ```
 //!
-//! **Conditions fixées** pour que la fenêtre soit toujours de 1 400 × 900 pixels et le texte le même : échelle de l'écran à 1
-//! (`WINIT_X11_SCALE_FACTOR=1`), opérateur `guioxide-test` (`USER`), et les trente dernières rangées (barre d'état, qui
+//! **Conditions fixées** pour que la fenêtre soit toujours de 1 400 × 900 pixels et le texte le même : en mode `--capture`,
+//! guioxide ignore l'état mémorisé (`app.ron`) et capture à un pixel par point quelle que soit l'échelle de l'écran ; les
+//! tests y ajoutent un dossier personnel vierge (`HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`), l'échelle 1 sous X11
+//! (`WINIT_X11_SCALE_FACTOR=1`) et l'opérateur `guioxide-test` (`USER`) ; les trente dernières rangées (barre d'état, qui
 //! affiche le chemin du jeu) ne sont pas comparées. Les références ont été produites avec lavapipe.
 //!
 //! **Tolérance** (mesurée le 10 novembre 2026, PGX, jeu fantôme) : deux captures successives du même binaire sont identiques
@@ -137,38 +139,79 @@ fn reference(onglet: u8) -> PathBuf {
 /// Une seule fenêtre à la fois : plusieurs captures simultanées se disputent l'écran et le focus.
 static FENETRE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Capture un onglet du jeu dans les conditions fixées et la compare à sa référence.
-fn verifier_onglet(onglet: u8, part_max: f64) {
-    let _fenetre = FENETRE.lock().unwrap_or_else(|e| e.into_inner());
-    let dossier = std::env::temp_dir().join(format!("guioxide-visuel-{}-{onglet}", std::process::id()));
-    std::fs::create_dir_all(&dossier).unwrap();
-    let capture = dossier.join(format!("onglet-{onglet}.png"));
-    let sortie = Command::new(env!("CARGO_BIN_EXE_guioxide"))
+/// Dossier personnel vierge propre à une capture : `HOME`, `XDG_DATA_HOME` et `XDG_CONFIG_HOME` y pointent, pour que
+/// l'état d'un usage réel (`app.ron` : taille de fenêtre, récents, opérateur) ne puisse pas changer la capture, sous Linux
+/// (`~/.local/share/guioxide`) comme sous macOS (`~/Library/Application Support/guioxide`).
+fn isoler(commande: &mut Command, home: &Path) {
+    commande
+        .env("HOME", home)
+        .env("XDG_DATA_HOME", home.join(".local/share"))
+        .env("XDG_CONFIG_HOME", home.join(".config"));
+    // L'autorisation X11 se cherche dans `~/.Xauthority` quand `XAUTHORITY` n'est pas fixé : garder la vraie.
+    if std::env::var_os("XAUTHORITY").is_none()
+        && let Some(vraie) = std::env::home_dir()
+            .map(|h| h.join(".Xauthority"))
+            .filter(|f| f.exists())
+    {
+        commande.env("XAUTHORITY", vraie);
+    }
+}
+
+/// Capture un onglet du jeu dans les conditions fixées, dans un dossier temporaire qu'il rend ; `regler` complète
+/// l'environnement (après l'isolement).
+fn capturer(onglet: u8, regler: impl FnOnce(&mut Command, &Path)) -> (tempfile::TempDir, PathBuf) {
+    let dossier = tempfile::Builder::new()
+        .prefix(&format!("guioxide-visuel-{onglet}-"))
+        .tempdir()
+        .unwrap();
+    let home = dossier.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let capture = dossier.path().join(format!("onglet-{onglet}.png"));
+    let mut commande = Command::new(env!("CARGO_BIN_EXE_guioxide"));
+    commande
         .arg(jeu())
         .args(["--onglet", &onglet.to_string(), "--capture"])
         .arg(&capture)
         .env("WINIT_X11_SCALE_FACTOR", "1")
-        .env("USER", "guioxide-test")
-        .output()
-        .unwrap();
+        .env("USER", "guioxide-test");
+    isoler(&mut commande, &home);
+    regler(&mut commande, &home);
+    let sortie = commande.output().unwrap();
     assert!(
         sortie.status.success(),
         "capture de l'onglet {onglet} : {}",
         String::from_utf8_lossy(&sortie.stderr)
     );
-    if std::env::var_os("GUIOXIDE_MAJ_REFERENCES").is_some() {
-        std::fs::copy(&capture, reference(onglet)).unwrap();
-        return;
+    (dossier, capture)
+}
+
+/// Compare une capture à la référence de son onglet ; garde la capture (dossier conservé) si elle s'en écarte.
+fn comparer(onglet: u8, part_max: f64, (dossier, capture): (tempfile::TempDir, PathBuf)) {
+    let image = lire_png(&capture);
+    let part = part_differente(&image, &lire_png(&reference(onglet)));
+    if part > part_max {
+        let _ = dossier.keep();
     }
-    let part = part_differente(&lire_png(&capture), &lire_png(&reference(onglet)));
     assert!(
         part <= part_max,
-        "onglet {onglet} : {:.3} % de pixels hors tolérance (au plus {:.3} %) ; capture : {}",
+        "onglet {onglet} : {:.3} % de pixels hors tolérance (au plus {:.3} %), capture de {} × {} : {}",
         part * 100.0,
         part_max * 100.0,
+        image.largeur,
+        image.hauteur,
         capture.display()
     );
-    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+/// Capture un onglet du jeu dans les conditions fixées et la compare à sa référence.
+fn verifier_onglet(onglet: u8, part_max: f64) {
+    let _fenetre = FENETRE.lock().unwrap_or_else(|e| e.into_inner());
+    let resultat = capturer(onglet, |_, _| {});
+    if std::env::var_os("GUIOXIDE_MAJ_REFERENCES").is_some() {
+        std::fs::copy(&resultat.1, reference(onglet)).unwrap();
+        return;
+    }
+    comparer(onglet, part_max, resultat);
 }
 
 #[test]
@@ -193,4 +236,40 @@ fn onglet_3_surfaces() {
 #[ignore = "jeu de test et écran"]
 fn onglet_4_simulation() {
     verifier_onglet(4, 0.001);
+}
+
+/// État d'un usage réel (E42, sur la RTX : fenêtre de 1 841 × 1 080 mémorisée, opérateur) placé là où l'utilisateur
+/// l'aurait, sous Linux et sous macOS, sans `XDG_DATA_HOME` : la capture n'en tient pas compte.
+#[test]
+#[ignore = "jeu de test et écran"]
+fn etat_de_l_utilisateur_ignore() {
+    let _fenetre = FENETRE.lock().unwrap_or_else(|e| e.into_inner());
+    let app_ron = r#"{
+    "window": "(normal_geometry:(outer_position_pixels:Some((x:0.0,y:0.0)),scale_factor:1.0,inner_size_points:(x:1841.0,y:1080.0)),fullscreen:false,maximized:false)",
+    "operateur": "\"utilisateur-reel\"",
+}"#;
+    let resultat = capturer(1, |commande, home| {
+        for dossier in [".local/share/guioxide", "Library/Application Support/guioxide"] {
+            std::fs::create_dir_all(home.join(dossier)).unwrap();
+            std::fs::write(home.join(dossier).join("app.ron"), app_ron).unwrap();
+        }
+        commande.env_remove("XDG_DATA_HOME");
+    });
+    let image = lire_png(&resultat.1);
+    assert_eq!((image.largeur, image.hauteur), (1400, 900), "taille de la capture");
+    comparer(1, 0.001, resultat);
+}
+
+/// Écran à l'échelle 2 (Retina ; simulé sous X11 par `WINIT_X11_SCALE_FACTOR`) : la capture garde 1 400 × 900 pixels et
+/// le rendu de l'échelle 1.
+#[test]
+#[ignore = "jeu de test et écran"]
+fn ecran_a_l_echelle_2() {
+    let _fenetre = FENETRE.lock().unwrap_or_else(|e| e.into_inner());
+    let resultat = capturer(1, |commande, _| {
+        commande.env("WINIT_X11_SCALE_FACTOR", "2");
+    });
+    let image = lire_png(&resultat.1);
+    assert_eq!((image.largeur, image.hauteur), (1400, 900), "taille de la capture");
+    comparer(1, 0.001, resultat);
 }

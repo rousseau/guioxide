@@ -43,6 +43,9 @@ pub struct Application {
     onglet_initial: Option<Etape>,
     session_initiale: Option<String>,
     capture: Option<Capture>,
+    /// `--capture` : jeu ouvert seulement quand la fenêtre a sa taille de capture (le cadrage des vues se fixe à la
+    /// première image affichée).
+    jeu_differe: Option<PathBuf>,
     /// Message de la barre de pied (capture enregistrée…).
     message: Option<String>,
 }
@@ -84,14 +87,19 @@ impl Application {
             rendu: cc.wgpu_render_state.clone(),
             onglet_initial: onglet,
             session_initiale: session,
-            capture: capture.map(|c| Capture::new(c, true, true)),
+            capture: capture.map(|c| Capture::new(c, true, true).a_l_echelle_un(crate::capture::TAILLE_FENETRE)),
+            jeu_differe: None,
             message: None,
         };
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
         *app.visualisation.operateur() = operateur.or_else(|| std::env::var("USER").ok()).unwrap_or_default();
         if let Some(chemin) = jeu {
-            app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
+            if app.capture.is_some() {
+                app.jeu_differe = Some(chemin);
+            } else {
+                app.ouvrir(&cc.egui_ctx, chemin, Sortie::Etude);
+            }
         }
         app
     }
@@ -277,6 +285,11 @@ impl Application {
 
     /// Capture en cours : la demande quand c'est le moment, puis en rend compte (et ferme pour `--capture`).
     fn suivre_capture(&mut self, ctx: &egui::Context) {
+        if self.capture.as_mut().is_some_and(|c| c.echelle_prete(ctx))
+            && let Some(chemin) = self.jeu_differe.take()
+        {
+            self.ouvrir(ctx, chemin, Sortie::Etude);
+        }
         let occupe = self.visualisation.occupe() || self.chargement.is_some();
         let Some(capture) = &mut self.capture else { return };
         capture.suivre(ctx, occupe);
