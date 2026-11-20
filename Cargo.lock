@@ -1495,6 +1495,7 @@ dependencies = [
  "guioxide-geom",
  "guioxide-view",
  "png",
+ "pollster 1.0.1",
  "rfd",
  "serde",
  "serde_json",

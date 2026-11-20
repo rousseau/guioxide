@@ -9,6 +9,8 @@ use guioxide_bids::{Avis, CheminsSession, Etape, EtatEtape, JeuBids, Qc, etats_s
 use guioxide_view::{pastille_etat, theme};
 use serde::{Deserialize, Serialize};
 
+use crate::dialogue::Dialogue;
+
 /// Répertoire où sont lues les dérivées.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Sortie {
@@ -155,6 +157,8 @@ pub struct EcranOuverture {
     tri: Tri,
     croissant: bool,
     saisie_libre: String,
+    /// Fenêtre « Parcourir… » du répertoire libre, ouverte.
+    parcourir: Option<Dialogue>,
 }
 
 impl Default for EcranOuverture {
@@ -166,6 +170,7 @@ impl Default for EcranOuverture {
             tri: Tri::Session,
             croissant: true,
             saisie_libre: String::new(),
+            parcourir: None,
         }
     }
 }
@@ -344,11 +349,15 @@ impl EcranOuverture {
                     .desired_width(180.0),
             );
             let valide = champ.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-            if ui.button("Parcourir…").clicked()
-                && let Some(dossier) = rfd::FileDialog::new().pick_folder()
-            {
-                self.saisie_libre = dossier.display().to_string();
-                actions.push(Action::ChangerSortie(Sortie::Libre(dossier)));
+            if ui.button("Parcourir…").clicked() && self.parcourir.is_none() {
+                self.parcourir = Some(Dialogue::dossier(ui.ctx(), "Répertoire de sortie libre"));
+            }
+            if let Some(resultat) = self.parcourir.as_ref().and_then(Dialogue::resultat) {
+                self.parcourir = None;
+                if let Some(dossier) = resultat {
+                    self.saisie_libre = dossier.display().to_string();
+                    actions.push(Action::ChangerSortie(Sortie::Libre(dossier)));
+                }
             } else if valide && !self.saisie_libre.trim().is_empty() {
                 actions.push(Action::ChangerSortie(Sortie::Libre(PathBuf::from(
                     self.saisie_libre.trim(),

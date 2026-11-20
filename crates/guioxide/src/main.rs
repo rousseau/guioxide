@@ -11,6 +11,7 @@
 
 mod app;
 mod capture;
+mod dialogue;
 mod etapes;
 mod examen;
 mod ouverture;
