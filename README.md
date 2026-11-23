@@ -34,3 +34,13 @@ Plateformes visées : macOS (Apple Silicon) et Linux, au minimum.
 cargo run --release -p guioxide
 cargo run --release -p guioxide -- /chemin/vers/jeu_bids      # ouvre directement un jeu
 ```
+
+### Application macOS (Dock)
+
+```bash
+bash scripts/macos/dmg.sh          # → target/dmg/guioxide-<version>.dmg
+```
+
+Ouvrir le `.dmg`, glisser `guioxide` dans `Applications`, puis le lancer et le garder dans le Dock (clic droit sur
+l'icône → Options → Garder dans le Dock). Signature ad hoc : copiée sur un autre Mac, l'application demande un clic
+droit → Ouvrir au premier lancement.

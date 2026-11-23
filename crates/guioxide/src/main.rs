@@ -50,6 +50,12 @@ fn options() -> Result<app::Options, String> {
     Ok(options)
 }
 
+/// Icône de l'application (Dock, barre des tâches) ; sans elle, eframe montre celle d'egui. Dessinée par
+/// `scripts/macos/icone.py`.
+fn icone() -> egui::IconData {
+    eframe::icon_data::from_png_bytes(include_bytes!("../assets/icone.png")).expect("icône PNG intégrée")
+}
+
 fn main() -> eframe::Result {
     let options_guioxide = match options() {
         Ok(o) => o,
@@ -61,6 +67,7 @@ fn main() -> eframe::Result {
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("guioxide")
+            .with_icon(icone())
             .with_inner_size(capture::TAILLE_FENETRE)
             .with_drag_and_drop(true),
         ..Default::default()
