@@ -38,9 +38,12 @@ cargo run --release -p guioxide -- /chemin/vers/jeu_bids      # ouvre directemen
 ### Application macOS (Dock)
 
 ```bash
-bash scripts/macos/dmg.sh          # → target/dmg/guioxide-<version>.dmg
+bash scripts/macos/installer.sh    # construit depuis le commit courant et installe dans /Applications
 ```
 
-Ouvrir le `.dmg`, glisser `guioxide` dans `Applications`, puis le lancer et le garder dans le Dock (clic droit sur
-l'icône → Options → Garder dans le Dock). Signature ad hoc : copiée sur un autre Mac, l'application demande un clic
-droit → Ouvrir au premier lancement.
+L'installation remplace `/Applications/guioxide.app` (ou `~/Applications` si `/Applications` n'est pas accessible en
+écriture) ; l'icône gardée dans le Dock lance la nouvelle version. Si guioxide tourne, le script attend : le quitter puis
+relancer avec `--sans-construire`. Journal : `~/Library/Logs/guioxide-installations.log`.
+
+Pour une image disque à copier sur un autre Mac : `bash scripts/macos/dmg.sh` (→ `target/dmg/guioxide-<version>.dmg`).
+Signature ad hoc : sur un autre Mac, clic droit → Ouvrir au premier lancement.
