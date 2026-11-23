@@ -51,7 +51,7 @@ fn options() -> Result<app::Options, String> {
 }
 
 /// Icône de l'application (Dock, barre des tâches) ; sans elle, eframe montre celle d'egui. Dessinée par
-/// `scripts/macos/icone.py`.
+/// `scripts/macos/icone.py` à partir du logo (`assets/logo.png`).
 fn icone() -> egui::IconData {
     eframe::icon_data::from_png_bytes(include_bytes!("../assets/icone.png")).expect("icône PNG intégrée")
 }
