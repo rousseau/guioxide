@@ -34,3 +34,16 @@ Plateformes visées : macOS (Apple Silicon) et Linux, au minimum.
 cargo run --release -p guioxide
 cargo run --release -p guioxide -- /chemin/vers/jeu_bids      # ouvre directement un jeu
 ```
+
+### Application macOS (Dock)
+
+```bash
+bash scripts/macos/installer.sh    # construit depuis le commit courant et installe dans /Applications
+```
+
+L'installation remplace `/Applications/guioxide.app` (ou `~/Applications` si `/Applications` n'est pas accessible en
+écriture) ; l'icône gardée dans le Dock lance la nouvelle version. Si guioxide tourne, le script attend : le quitter puis
+relancer avec `--sans-construire`. Journal : `~/Library/Logs/guioxide-installations.log`.
+
+Pour une image disque à copier sur un autre Mac : `bash scripts/macos/dmg.sh` (→ `target/dmg/guioxide-<version>.dmg`).
+Signature ad hoc : sur un autre Mac, clic droit → Ouvrir au premier lancement.
