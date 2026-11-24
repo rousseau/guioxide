@@ -120,7 +120,9 @@ contrat).
 - [ ] Configuration des binaires (`medx`, `surfx`, `gyroxide`) : `PATH` ou chemins dans les
       préférences ; affichage de leur version.
 - [ ] Exécution en sous-processus avec la ligne de commande générée depuis l'interface, sortie
-      dans le répertoire choisi, journal, annulation.
+      dans le répertoire choisi, journal, annulation. Première version (24 nov. 2026) : nouvelle séance à
+      partir de piles NIfTI glissées, chaîne complète en séquence, journal et annulation (`chaine.rs`,
+      `import.rs`) ; pas encore de file d'attente, de formulaires tirés de `--describe` ni de reprise.
 - [ ] Progression : lecture de `status.json` (gyroxide) et des sorties standard.
 
 *Fin* : une session va de l'examen à la simulation sans quitter guioxide.

@@ -76,6 +76,8 @@ pub struct Surfaces {
     lignes: Vec<LigneSurface>,
     superposition: Superposition,
     coloration: Coloration,
+    /// Segmentation source en 2D : opacité, plein ou contour.
+    etiquettes: guioxide_view::coupe::Superposition,
     vues: [VueCoupe; 3],
     vue3d: Vue3d,
     /// Hémisphère des vues prédéfinies.
@@ -105,6 +107,7 @@ impl Default for Surfaces {
             lignes,
             superposition: Superposition::Contours,
             coloration: Coloration::Uni,
+            etiquettes: Default::default(),
             vues: Orientation::TOUTES.map(|o| VueCoupe::new(TypeVue::Alignee(o))),
             vue3d: Vue3d::default(),
             gauche: true,
@@ -157,6 +160,9 @@ impl Surfaces {
         };
         if let Some(v) = svr.pret() {
             base.placer_curseur(v, curseur);
+        }
+        if self.superposition == Superposition::Segmentation {
+            self.etiquettes.raccourcis(ui.ctx());
         }
         if self.controle.is_none() {
             let c = chemins.controle_surfaces();
@@ -219,12 +225,13 @@ impl Surfaces {
             let table = TableEtiquettes::lire(&chemins.etiquettes()).unwrap_or_default();
             couches.push(Couche {
                 volume: v.volume.clone(),
-                rendu: Rendu::Etiquettes { table, opacite: 0.45 },
-                visible: true,
+                rendu: self.etiquettes.etiquettes(table),
+                visible: self.etiquettes.visible,
             });
         }
 
         egui::Panel::left("surfaces_liste")
+            .max_size(480.0)
             .resizable(true)
             .default_size(270.0)
             .show(ui, |ui| {
@@ -264,9 +271,13 @@ impl Surfaces {
                         "segmentation source",
                     );
                     ui.radio_value(&mut self.superposition, Superposition::Rien, "rien");
+                    if self.superposition == Superposition::Segmentation {
+                        self.etiquettes.ui(ui, "Segmentation");
+                    }
                 });
             });
         egui::Panel::right("surfaces_controle")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| {

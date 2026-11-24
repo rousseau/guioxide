@@ -107,3 +107,61 @@ Voir `guioxide/docs/developpement.md` :
 - épingler la même version de Rust que surfoxide et gyroxide ;
 - CI `ubuntu-latest` + `macos-latest` (fmt, clippy, test sur CPU) ;
 - vérifier que `medx` tourne sur la station RTX 2080 Ti (Vulkan, ou CUDA via une feature).
+
+---
+
+Demandes 7 à 10 : premier essai de guioxide sur une séance réelle (5 piles HASTE de 19 coupes, 512 × 512,
+0,74 × 0,74 × 4,6 mm), le 24 novembre 2026 sur le Mac, `medx` du 5 novembre. Ouvertes le même jour : medoxide#20 à #23.
+
+## 7. Orientation du volume reconstruit avant la segmentation
+
+> **Ouverte** : [medoxide#20](https://github.com/rousseau/medoxide/issues/20).
+
+Constat : `medx svr recon` garde l'orientation des piles (repère de l'appareil) ; le cerveau fœtal y est tourné de
+façon quelconque (ici d'environ 90° : la vue coronale du volume montre une coupe sagittale du cerveau). La chaîne
+officielle de BOUNTI-19 rééchantillonne dans une grille LAS **sans réorienter** : elle suppose un volume déjà dans
+l'orientation de l'atlas, comme le rend SVRTK. Résultat : segmentation très mauvaise sur un volume pourtant correct
+(liquide externe gauche + droit 116 cm³ sur 326, hémisphères mêlés).
+
+Demande, au choix :
+- l'étape 5 de `docs/ROADMAP.md` (recalage rigide du volume reconstruit sur un atlas, réorientation) dans
+  `medx svr recon`, ou en commande séparée que guioxide lancera avant `medx bounti` ;
+- ou `medx multibounti --bids` (Multi-BOUNTI réoriente lui-même, par le réseau gauche/droite et le recalage affine
+  sur son gabarit), avec un chemin de sortie du contrat que `surfx run --labels multibounti43` lise ; il demande une
+  reconstruction à 0,5 mm, que guioxide sait désormais demander (`--resolution-mm`).
+
+## 8. Avancement et parallélisme de la SVR coupe-coupe
+
+> **Ouverte** : [medoxide#21](https://github.com/rousseau/medoxide/issues/21).
+
+Constat : `medx svr recon --motion s2s --device cpu` sur 95 coupes : 781 s, un seul cœur occupé la plupart du temps
+(mise à jour `gauss-seidel`, `s2s_block_parallel_gradient: false`), et rien dans la sortie standard entre la ligne
+de départ et la fin : l'utilisateur ne sait pas où en est le calcul. guioxide affiche une estimation tirée des
+exécutions précédentes, faute de mieux.
+
+Demande :
+- écrire l'avancement : une ligne par passe ou par pile (`passe 2/3, pile 4/5`), ou mieux `status.json` au format de
+  gyroxide (`docs/donnees.md`), que guioxide lira pour une vraie barre d'avancement (P2 de la feuille de route) ;
+- paralléliser ce qui peut l'être sur CPU (recalages de coupes indépendantes, mise à jour par blocs) ou dire dans
+  `--help` quels réglages le permettent et à quel prix.
+
+## 9. Exclure des coupes à la main
+
+> **Ouverte** : [medoxide#22](https://github.com/rousseau/medoxide/issues/22).
+
+Constat : l'opérateur voit dans l'examen des coupes à écarter (coupes sombres, coupe 14 de la première pile ici,
+utilisée par le SVR) ; `--input` (avec `--bids`) ne permet d'écarter que des piles entières.
+
+Demande : une option `--exclude <fichier.tsv>` (colonnes `stack slice`, ou le `desc-qc` de guioxide) lue par
+`svr qc` et `svr recon`, les coupes listées étant marquées `excluded = 1`, motif `operateur`, dans
+`desc-svr_slicequality.tsv`. guioxide écrira ce fichier dans `derivatives/guioxide/` depuis la mosaïque.
+
+## 10. Coupes « hors masque » au bord d'une pile
+
+> **Ouverte** : [medoxide#23](https://github.com/rousseau/medoxide/issues/23).
+
+Constat : pile coronale propre, 5 coupes sur 19 exclues `hors_masque` (0, 1, 16, 17, 18). Si le masque de fetalbet
+est vide sur des coupes qui montrent encore le cerveau, la reconstruction perd des données. À vérifier sur cette
+séance : les coupes 16 à 18 contiennent-elles du cerveau ? Si oui, Fetal-BET manque les coupes tangentes au cerveau
+(seuil, plus grande composante), et un masque dilaté d'une coupe dans l'axe z, ou un seuil de couverture plus bas,
+serait à évaluer.

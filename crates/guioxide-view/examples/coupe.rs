@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rendu = Rendu::Etiquettes {
             table: TableEtiquettes::default(),
             opacite: 0.45,
+            contour: false,
         };
         couches.push(Couche {
             volume: lire_volume(chemin.as_ref())?.volume,

@@ -109,6 +109,7 @@ fn couches_de(image: &Arc<Volume>, etiquettes: &Arc<Volume>, n: usize) -> Vec<Co
             rendu: Rendu::Etiquettes {
                 table: TableEtiquettes::default(),
                 opacite: 0.45,
+                contour: false,
             },
             visible: true,
         },

@@ -9,13 +9,12 @@ use egui_plot::{Legend, Line, Plot, PlotPoints, Points, VLine};
 use guioxide_bids::{CheminsSession, Etape, EtatEtape, Session};
 use guioxide_data::{PointMouvement, TableEtiquettes, mouvement_par_coupe};
 use guioxide_geom::{PointMonde, Volume};
-use guioxide_view::coupe::{Couche, Rendu, Triplanaire};
+use guioxide_view::coupe::{Couche, Rendu, Superposition, Triplanaire};
 use guioxide_view::{pastille_etat, theme};
 
-use crate::etapes::{Base, DonneesSession, Fichier, Statut, ligne_couche, message_central, nom_court, panneau_curseur};
-
-/// Opacité initiale de la segmentation.
-const OPACITE: f32 = 0.45;
+use crate::etapes::{
+    Base, CONTOUR, DonneesSession, Fichier, Statut, ligne_couche, message_central, nom_court, panneau_curseur,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SousEtape {
@@ -34,14 +33,28 @@ impl SousEtape {
             SousEtape::Segmentation => "2c Segmentation",
         }
     }
+
+    /// Ce que montre la sous-étape, sous les onglets.
+    fn description(self) -> &'static str {
+        match self {
+            SousEtape::Masques => "masque du cerveau de chaque pile (medx fetalbet), en contour sur la pile",
+            SousEtape::Svr => "volume reconstruit (medx svr) et mouvement estimé de chaque coupe",
+            SousEtape::Segmentation => "étiquettes (medx bounti) sur le volume reconstruit, et leurs volumes",
+        }
+    }
 }
 
 pub struct Reconstruction {
     sous_etape: SousEtape,
-    triplanaire: Triplanaire,
+    /// Une vue triplanaire par sous-étape (cadrage propre à chacune : piles et volume n'ont pas la même boîte).
+    triplanaires: [Triplanaire; 3],
+    /// Pile montrée en 2a, son fenêtrage, volume de son masque (cm³) par volume lu.
+    pile_masque: usize,
+    fenetre_pile: Option<(f32, f32)>,
+    volume_masque: Option<(usize, f64)>,
     fenetre: Option<(f32, f32)>,
-    segmentation_visible: bool,
-    opacite: f32,
+    /// Masque (2a) ou segmentation (2c) : visible, opacité, plein ou contour.
+    superposition: Superposition,
     etiquettes: Option<Fichier<TableEtiquettes>>,
     /// Volume (cm³) de chaque étiquette, calculé une fois par segmentation lue.
     volumes: Option<(usize, BTreeMap<u32, f64>)>,
@@ -53,11 +66,18 @@ pub struct Reconstruction {
 impl Default for Reconstruction {
     fn default() -> Self {
         Reconstruction {
-            sous_etape: SousEtape::Svr,
-            triplanaire: Triplanaire::default(),
+            // `GUIOXIDE_SOUS_ETAPE=a|b|c` : sous-étape d'emblée (captures de contrôle).
+            sous_etape: match std::env::var("GUIOXIDE_SOUS_ETAPE").as_deref() {
+                Ok("a") => SousEtape::Masques,
+                Ok("c") => SousEtape::Segmentation,
+                _ => SousEtape::Svr,
+            },
+            triplanaires: Default::default(),
+            pile_masque: 0,
+            fenetre_pile: None,
+            volume_masque: None,
             fenetre: None,
-            segmentation_visible: true,
-            opacite: OPACITE,
+            superposition: Superposition::default(),
             etiquettes: None,
             volumes: None,
             pile_mouvement: None,
@@ -133,24 +153,52 @@ impl Reconstruction {
             self.volumes = Some((Arc::as_ptr(&v.volume) as usize, volumes_etiquettes(&v.volume)));
         }
         let mouvement = self.mouvement.get_or_insert_with(|| mouvement_session(donnees));
+        self.superposition.raccourcis(ui.ctx());
 
+        // Couches de la sous-étape : pile et contour de son masque (2a), volume reconstruit (2b), volume et
+        // étiquettes (2c).
+        let t2w: Vec<&guioxide_bids::Pile> = session.piles.iter().filter(|p| p.contraste == "T2w").collect();
+        self.pile_masque = self.pile_masque.min(t2w.len().saturating_sub(1));
+        let (pile, masque) = match t2w.get(self.pile_masque) {
+            Some(p) => (base.statut(&p.chemin), base.statut(&chemins.masque(p))),
+            None => (Statut::Absent, Statut::Absent),
+        };
         let mut couches = Vec::new();
-        if let Some(v) = svr.pret() {
-            couches.push(Couche {
-                volume: v.volume.clone(),
-                rendu: Rendu::Image { fenetre: self.fenetre },
-                visible: true,
-            });
-        }
-        if let Some(v) = seg.pret() {
-            couches.push(Couche {
-                volume: v.volume.clone(),
-                rendu: Rendu::Etiquettes {
-                    table: table.clone(),
-                    opacite: self.opacite,
-                },
-                visible: self.segmentation_visible,
-            });
+        match self.sous_etape {
+            SousEtape::Masques => {
+                if let Some(v) = pile.pret() {
+                    couches.push(Couche {
+                        volume: v.volume.clone(),
+                        rendu: Rendu::Image {
+                            fenetre: self.fenetre_pile,
+                        },
+                        visible: true,
+                    });
+                }
+                if let Some(v) = masque.pret() {
+                    couches.push(Couche {
+                        volume: v.volume.clone(),
+                        rendu: Rendu::Contour { couleur: CONTOUR },
+                        visible: self.superposition.visible,
+                    });
+                }
+            }
+            SousEtape::Svr | SousEtape::Segmentation => {
+                if let Some(v) = svr.pret() {
+                    couches.push(Couche {
+                        volume: v.volume.clone(),
+                        rendu: Rendu::Image { fenetre: self.fenetre },
+                        visible: true,
+                    });
+                }
+                if let (SousEtape::Segmentation, Some(v)) = (self.sous_etape, seg.pret()) {
+                    couches.push(Couche {
+                        volume: v.volume.clone(),
+                        rendu: self.superposition.etiquettes(table.clone()),
+                        visible: self.superposition.visible,
+                    });
+                }
+            }
         }
 
         let etat = |s: SousEtape| match s {
@@ -173,63 +221,106 @@ impl Reconstruction {
         };
 
         egui::Panel::top("reco_sous_etapes").show(ui, |ui| {
+            ui.add_space(2.0);
             ui.horizontal(|ui| {
                 for s in SousEtape::TOUTES {
                     pastille_etat(ui, &etat(s));
                     ui.selectable_value(&mut self.sous_etape, s, s.libelle());
                     ui.add_space(12.0);
                 }
+                ui.separator();
+                ui.label(
+                    RichText::new(self.sous_etape.description())
+                        .small()
+                        .color(theme::TEXTE_SECONDAIRE),
+                );
             });
+            ui.add_space(2.0);
         });
         egui::Panel::left("reco_couches")
+            .max_size(480.0)
             .resizable(true)
             .default_size(290.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.strong("Couches");
-                    ligne_couche(ui, "Volume reconstruit", "medx-svr", &svr);
-                    ligne_couche(ui, "Segmentation", "medx-bounti", &seg);
-                    if seg.pret().is_some() {
-                        ui.checkbox(&mut self.segmentation_visible, "Afficher la segmentation");
-                        ui.add(egui::Slider::new(&mut self.opacite, 0.0..=1.0).text("opacité"));
+                    theme::titre_section(ui, "Couches");
+                    match self.sous_etape {
+                        SousEtape::Masques => {
+                            ligne_couche(ui, "Pile", "sourcedata", &pile);
+                            ligne_couche(ui, "Masque", "medx-fetalbet", &masque);
+                            if masque.pret().is_some() {
+                                ui.checkbox(&mut self.superposition.visible, "Contour du masque")
+                                    .on_hover_text("touche O");
+                            }
+                        }
+                        SousEtape::Svr => ligne_couche(ui, "Volume reconstruit", "medx-svr", &svr),
+                        SousEtape::Segmentation => {
+                            ligne_couche(ui, "Volume reconstruit", "medx-svr", &svr);
+                            ligne_couche(ui, "Segmentation", "medx-bounti", &seg);
+                            if seg.pret().is_some() {
+                                self.superposition.ui(ui, "Segmentation");
+                            }
+                            if let Some(e) = &erreur_etiquettes {
+                                ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));
+                            }
+                        }
                     }
-                    if svr.pret().is_some() && ui.button("Fenêtrage automatique").clicked() {
-                        self.fenetre = None;
-                    }
-                    if let Some(e) = &erreur_etiquettes {
-                        ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));
-                    }
-                    if let Some((_, volumes)) = &self.volumes {
+                    if self.sous_etape == SousEtape::Masques {
                         ui.add_space(8.0);
-                        ui.strong("Étiquettes");
-                        table_etiquettes(ui, &table, volumes);
+                        theme::titre_section(ui, &format!("Piles · masques {masques_presents} / {total_t2w}"));
+                        for (i, p) in t2w.iter().enumerate() {
+                            let present = chemins.masque(p).exists();
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(if present { "✓" } else { "○" }).color(if present {
+                                    theme::TERMINE
+                                } else {
+                                    theme::TEXTE_SECONDAIRE
+                                }));
+                                if ui
+                                    .selectable_label(
+                                        i == self.pile_masque,
+                                        RichText::new(nom_court(&p.nom, chemins.prefixe())).monospace(),
+                                    )
+                                    .clicked()
+                                {
+                                    self.pile_masque = i;
+                                    self.fenetre_pile = None;
+                                    self.triplanaires[0].recadrer();
+                                }
+                            });
+                        }
                     }
                 });
             });
         egui::Panel::right("reco_parametres")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.strong(self.sous_etape.libelle());
+                    theme::titre_section(ui, self.sous_etape.libelle());
                     match self.sous_etape {
                         SousEtape::Masques => {
                             ui.label(format!("Masques fetalbet : {masques_presents} / {total_t2w} piles T2w"));
-                            for p in session.piles.iter().filter(|p| p.contraste == "T2w") {
-                                let present = chemins.masque(p).exists();
-                                ui.label(
-                                    RichText::new(format!(
-                                        "{} {}",
-                                        if present { "✓" } else { "○" },
-                                        nom_court(&p.nom, chemins.prefixe())
-                                    ))
-                                    .color(if present {
-                                        theme::TERMINE
-                                    } else {
-                                        theme::TEXTE_SECONDAIRE
-                                    }),
-                                );
+                            if let Some(v) = masque.pret() {
+                                let cle = Arc::as_ptr(&v.volume) as usize;
+                                if self.volume_masque.is_none_or(|(c, _)| c != cle) {
+                                    let voxels = v.volume.voxels().iter().filter(|x| **x > 0.5).count();
+                                    let cm3 = voxels as f64 * v.volume.affine().volume_voxel() / 1000.0;
+                                    self.volume_masque = Some((cle, cm3));
+                                }
+                                if let Some((_, cm3)) = self.volume_masque {
+                                    ui.label(format!("Volume du masque (pile affichée) : {} cm³", virgule(cm3)));
+                                }
                             }
+                            ui.label(
+                                RichText::new(
+                                    "Le contour orange doit suivre le cerveau sur toutes les coupes qui le montrent : \
+                                     une coupe hors du masque n'entre pas dans la reconstruction.",
+                                )
+                                .small()
+                                .color(theme::TEXTE_SECONDAIRE),
+                            );
                         }
                         SousEtape::Svr => {
                             parametres(ui, &donnees.parametres);
@@ -249,20 +340,53 @@ impl Reconstruction {
                         }
                     }
                     ui.add_space(8.0);
-                    panneau_curseur(ui, curseur, &[("volume", svr.pret()), ("segmentation", seg.pret())]);
+                    match self.sous_etape {
+                        SousEtape::Masques => {
+                            panneau_curseur(ui, curseur, &[("pile", pile.pret()), ("masque", masque.pret())])
+                        }
+                        _ => panneau_curseur(ui, curseur, &[("volume", svr.pret()), ("segmentation", seg.pret())]),
+                    }
                     ui.add_space(12.0);
                     base.valider(ui, Etape::Reconstruction, chemins);
                 });
             });
         egui::CentralPanel::default().show(ui, |ui| {
             if couches.is_empty() {
-                message_central(ui, &[("Volume reconstruit", &svr), ("Segmentation", &seg)]);
+                match self.sous_etape {
+                    SousEtape::Masques => message_central(ui, &[("Pile", &pile), ("Masque", &masque)]),
+                    SousEtape::Svr => message_central(ui, &[("Volume reconstruit", &svr)]),
+                    SousEtape::Segmentation => {
+                        message_central(ui, &[("Volume reconstruit", &svr), ("Segmentation", &seg)])
+                    }
+                }
                 return;
             }
             let pile_mouvement = &mut self.pile_mouvement;
-            self.triplanaire.ui(ui, &mut couches, &[], curseur, |ui, case| {
-                let mut enfant = ui.new_child(egui::UiBuilder::new().max_rect(case.shrink(4.0)));
-                courbe_mouvement(&mut enfant, mouvement, pile_mouvement, chemins.prefixe(), donnees);
+            let sous_etape = self.sous_etape;
+            let volumes = self.volumes.as_ref().map(|(_, v)| v);
+            let triplanaire = &mut self.triplanaires[sous_etape as usize];
+            triplanaire.ui(ui, &mut couches, &[], curseur, |ui, case| {
+                let mut enfant = ui.new_child(egui::UiBuilder::new().max_rect(case.shrink(8.0)));
+                match sous_etape {
+                    SousEtape::Masques => {
+                        enfant.label(
+                            RichText::new("Contour orange : masque du cerveau de la pile (medx fetalbet)")
+                                .color(theme::TEXTE_SECONDAIRE),
+                        );
+                    }
+                    SousEtape::Svr => {
+                        courbe_mouvement(&mut enfant, mouvement, pile_mouvement, chemins.prefixe(), donnees)
+                    }
+                    SousEtape::Segmentation => match volumes {
+                        Some(v) => {
+                            theme::titre_section(&mut enfant, "Étiquettes");
+                            egui::ScrollArea::vertical().show(&mut enfant, |ui| table_etiquettes(ui, &table, v));
+                        }
+                        None => {
+                            enfant.label(RichText::new("pas de segmentation lue").color(theme::TEXTE_SECONDAIRE));
+                        }
+                    },
+                }
             });
         });
         if let Some(Couche {
@@ -270,7 +394,10 @@ impl Reconstruction {
             ..
         }) = couches.first()
         {
-            self.fenetre = *fenetre;
+            match self.sous_etape {
+                SousEtape::Masques => self.fenetre_pile = *fenetre,
+                _ => self.fenetre = *fenetre,
+            }
         }
     }
 }
@@ -295,11 +422,13 @@ fn parametres(ui: &mut Ui, fichier: &Fichier<serde_json::Value>) {
                     };
                     for (cle, v) in entrees {
                         ui.label(RichText::new(cle).monospace());
-                        let texte = match v {
+                        let complet = match v {
                             serde_json::Value::String(s) => s.clone(),
                             autre => autre.to_string(),
                         };
-                        ui.label(texte);
+                        // Valeur courte : les chemins réduits à leur nom de fichier, le reste au survol.
+                        ui.add(egui::Label::new(valeur_courte(v)).truncate())
+                            .on_hover_text(complet);
                         ui.end_row();
                     }
                 });
@@ -336,6 +465,27 @@ fn resume_mouvement(ui: &mut Ui, mouvement: &[PointMouvement], donnees: &Donnees
                 );
             }
         }
+    }
+}
+
+/// Valeur d'un paramètre en une ligne : chemins réduits à leur nom de fichier, listes à leurs éléments.
+fn valeur_courte(v: &serde_json::Value) -> String {
+    // Un chemin seul (sans espace) : son nom de fichier ; une ligne de commande reste entière.
+    let nom = |s: &str| match s.contains(char::is_whitespace) {
+        true => s.to_owned(),
+        false => s.rsplit('/').next().unwrap_or(s).to_owned(),
+    };
+    match v {
+        serde_json::Value::String(s) => nom(s),
+        serde_json::Value::Array(a) => a
+            .iter()
+            .map(|x| match x {
+                serde_json::Value::String(s) => nom(s),
+                autre => autre.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        autre => autre.to_string(),
     }
 }
 

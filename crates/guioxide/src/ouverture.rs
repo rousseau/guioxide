@@ -139,6 +139,8 @@ impl Chargement {
 pub enum Action {
     Ouvrir(PathBuf, Sortie),
     ChoisirDossier,
+    /// Nouvelle séance à partir de piles NIfTI.
+    ChoisirPiles,
     ChangerSortie(Sortie),
     OuvrirSession,
 }
@@ -203,6 +205,29 @@ impl EcranOuverture {
             {
                 actions.push(Action::ChoisirDossier);
             }
+            ui.add_space(12.0);
+            let piles = egui::Frame::new()
+                .stroke((1.0, bordure))
+                .corner_radius(8.0)
+                .inner_margin(20.0)
+                .show(ui, |ui| {
+                    ui.set_width(480.0 + 24.0);
+                    ui.vertical_centered(|ui| {
+                        ui.strong("Nouvelle séance à partir de piles NIfTI");
+                        ui.label(
+                            RichText::new("Glisser des fichiers .nii / .nii.gz ici, ou cliquer pour les choisir")
+                                .color(theme::TEXTE_SECONDAIRE),
+                        );
+                    });
+                });
+            if piles
+                .response
+                .interact(Sense::click())
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+            {
+                actions.push(Action::ChoisirPiles);
+            }
             if !recents.is_empty() {
                 ui.add_space(24.0);
                 ui.label(RichText::new("Récents").color(theme::TEXTE_SECONDAIRE));
@@ -233,10 +258,12 @@ impl EcranOuverture {
         actions: &mut Vec<Action>,
     ) {
         egui::Panel::left("ouverture_jeu")
+            .max_size(480.0)
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| self.panneau_jeu(ui, ouvert));
         egui::Panel::right("ouverture_sortie")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| self.panneau_sortie(ui, &ouvert.jeu, sortie, actions));
@@ -519,15 +546,16 @@ fn avis_session(ui: &mut Ui, qc: &Qc) {
     });
 }
 
-/// Premier dossier (ou fichier) déposé dans la fenêtre pendant cette image.
-pub fn depot(ctx: &egui::Context) -> Option<PathBuf> {
+/// Dossiers et fichiers déposés dans la fenêtre pendant cette image.
+pub fn depot(ctx: &egui::Context) -> Vec<PathBuf> {
     ctx.input(|i| {
         i.raw
             .dropped_files
             .iter()
             .map(|f| f.path())
-            .find(|p| !p.as_os_str().is_empty())
+            .filter(|p| !p.as_os_str().is_empty())
             .map(Path::to_path_buf)
+            .collect()
     })
 }
 
