@@ -271,7 +271,8 @@ impl VueCoupe {
             let galee = ui
                 .painter()
                 .layout_no_wrap(texte.to_owned(), egui::FontId::proportional(12.0), theme::TEXTE);
-            let taille = galee.size() + Vec2::new(14.0, 8.0);
+            let marge = ui.spacing().button_padding * 2.0;
+            let taille = galee.size() + marge + Vec2::new(6.0, 2.0);
             let zone = Rect::from_min_size(Pos2::new(x - taille.x, rect.top() + 6.0), taille);
             x -= taille.x + 4.0;
             ui.put(
