@@ -89,7 +89,7 @@ impl Default for Import {
             session: "01".to_owned(),
             age: String::new(),
             destination: String::new(),
-            mouvement: Mouvement::S2v,
+            mouvement: Mouvement::S2s,
             simulation: true,
             pas: 2000,
             erreur: None,
@@ -245,8 +245,12 @@ impl Import {
             ui.end_row();
             ui.label("Reconstruction");
             ui.horizontal(|ui| {
-                ui.radio_value(&mut self.mouvement, Mouvement::S2v, "coupe-volume (s2v)");
-                ui.radio_value(&mut self.mouvement, Mouvement::S2s, "coupe-coupe (s2s, rapide)");
+                ui.radio_value(
+                    &mut self.mouvement,
+                    Mouvement::S2s,
+                    "coupe-coupe (s2s, ~10 min sur le Mac)",
+                );
+                ui.radio_value(&mut self.mouvement, Mouvement::S2v, "coupe-volume (s2v, plus long)");
             });
             ui.end_row();
             ui.label("Simulation");
