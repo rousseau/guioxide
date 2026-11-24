@@ -57,6 +57,54 @@ Dépendances autorisées, de bas en haut : `geom` ← `data` ← `bids` ← `vie
 
 Backend wgpu : Metal sur Mac, Vulkan sur Linux (station RTX 2080 Ti, pilote NVIDIA).
 
+### Décision : egui natif plutôt que Tauri (24 nov. 2026)
+
+Les autres applications Rust du laboratoire (nonos, rusty_music, spinloop) sont en Tauri. guioxide
+reste en `eframe` / `egui`. Le choix initial n'avait pas été comparé à Tauri ; cette note le fait
+après coup.
+
+**Raisons du choix d'egui**
+
+1. **Les données restent en Rust, sans copie.** Volumes NIfTI de plusieurs centaines de Mo, maillages
+   de centaines de milliers de triangles, lus par `medoxide-core` et `surfoxide-io`. Avec egui, une coupe
+   échantillonnée devient une texture et un maillage un tampon wgpu, dans le même processus. Avec Tauri,
+   il faudrait les faire passer vers la webview (IPC, ou protocole personnalisé en binaire), puis refaire
+   le rendu en JS.
+2. **Rendu 3D en wgpu natif, sur les trois architectures.** La vue 3D est un callback wgpu
+   (`egui_wgpu::CallbackTrait`) : Metal sur Mac, Vulkan sur Linux, la même pile graphique que Burn et
+   gyroxide. Dans une webview, WebGL ou WebGPU dépend du moteur (WKWebView sur Mac, WebKitGTK sous
+   Linux), où WebGPU est encore limité ; or guioxide doit tourner sous Linux aarch64 et x86_64 avec
+   pilote NVIDIA.
+3. **Une seule langue, une seule chaîne.** Ni npm ni front JS : la même toolchain épinglée et la même CI
+   que les trois outils ([developpement.md](developpement.md)). La logique (`guioxide-bids`, `-data`,
+   `-geom`) se teste en CI comme le reste.
+4. **Une visionneuse plutôt qu'une application de formulaires.** Coupes liées par un curseur en
+   coordonnées monde, courbes, rafraîchissement continu à chaque déplacement : le mode immédiat d'egui
+   s'y prête. Tauri est plus fort pour une interface riche en mise en page et en texte.
+
+**Alternative écartée : Tauri + [niivue](https://github.com/niivue/niivue)**
+
+C'est la seule alternative sérieuse. niivue (WebGL2) affiche déjà volumes NIfTI, superposition
+d'étiquettes, maillages et lecture GIfTI ; une bonne part de `guioxide-view` serait déjà faite, et
+l'interface aurait le soin et la pile des autres applications. Elle est écartée pour l'instant parce
+qu'elle :
+
+- ferait relire les fichiers par niivue (JS) plutôt que par les crates des outils, contre le principe 4
+  (guioxide ne lit aucun fichier d'outil lui-même), ou imposerait de transférer les données lues en Rust ;
+- ajouterait une seconde pile (TypeScript, npm, tests côté web) aux quatre dépôts Rust ;
+- dépendrait du WebGL de WebKitGTK sous Linux, non vérifié sur les stations NVIDIA.
+
+**Quand rouvrir la question**
+
+- si les vues propres à guioxide (coupe, triplanaire, 3D) coûtent nettement plus à maintenir que ce
+  qu'apporterait niivue ;
+- si l'interface doit s'ouvrir hors des trois machines (navigateur, collègues sans compilation) ;
+- si egui bloque sur un besoin d'interface (texte riche, accessibilité, mise en page complexe).
+
+Avant de changer, un essai borné : un sujet du jeu de test affiché dans niivue sous Tauri, sur le Mac et
+la station x86_64, avec les données lues par les crates des outils puis transmises à la webview, temps
+de chargement et fluidité comparés à guioxide.
+
 ## Modèle d'état
 
 ```
