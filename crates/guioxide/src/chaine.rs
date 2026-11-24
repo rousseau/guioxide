@@ -19,8 +19,6 @@ pub enum Outil {
 }
 
 impl Outil {
-    pub const TOUS: [Outil; 3] = [Outil::Medx, Outil::Surfx, Outil::Gyroxide];
-
     pub fn binaire(self) -> &'static str {
         match self {
             Outil::Medx => "medx",
@@ -103,9 +101,28 @@ pub struct Etape {
     pub nom: String,
     pub programme: PathBuf,
     pub arguments: Vec<String>,
+    /// Clé des durées mémorisées (estimation du temps restant) et quantité de travail : piles, coupes, pas…
+    pub cle: String,
+    pub unites: f64,
+    /// Durée prévue, si une exécution précédente (ou une mesure de référence) permet de l'estimer.
+    pub prevue: Option<Duration>,
+    /// Nombre total de pas, si l'outil écrit son avancement dans le journal (gyroxide run : `<pas> …` par ligne).
+    pub pas: Option<u64>,
 }
 
 impl Etape {
+    pub fn new(nom: &str, programme: &Path, arguments: Vec<String>) -> Etape {
+        Etape {
+            nom: nom.to_owned(),
+            programme: programme.to_path_buf(),
+            arguments,
+            cle: nom.to_owned(),
+            unites: 1.0,
+            prevue: None,
+            pas: None,
+        }
+    }
+
     pub fn ligne_de_commande(&self) -> String {
         let mut ligne = self.programme.display().to_string();
         for a in &self.arguments {
@@ -309,6 +326,14 @@ pub fn fin_du_journal(chemin: &Path, lignes: usize) -> String {
     toutes[toutes.len().saturating_sub(lignes)..].join("\n")
 }
 
+/// Pas atteint d'après la dernière ligne du journal qui commence par un nombre (sortie de `gyroxide run`).
+pub fn pas_atteint(chemin: &Path) -> Option<u64> {
+    let fin = fin_du_journal(chemin, 6);
+    fin.lines()
+        .rev()
+        .find_map(|l| l.split_whitespace().next()?.parse::<u64>().ok())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,13 +347,29 @@ mod tests {
     }
 
     #[test]
+    fn pas_atteint_lu_dans_le_journal() {
+        let dossier = tempfile::tempdir().unwrap();
+        let chemin = dossier.path().join("j.log");
+        std::fs::write(
+            &chemin,
+            "step t\n      500    0.0007  8.9s\n     1000    0.0015  16.8s\n",
+        )
+        .unwrap();
+        assert_eq!(pas_atteint(&chemin), Some(1000));
+        std::fs::write(&chemin, "rien\n").unwrap();
+        assert_eq!(pas_atteint(&chemin), None);
+    }
+
+    #[test]
     fn chaine_s_arrete_au_premier_echec() {
         let ctx = egui::Context::default();
         let dossier = tempfile::tempdir().unwrap();
-        let etape = |nom: &str, code: &str| Etape {
-            nom: nom.to_owned(),
-            programme: PathBuf::from("/bin/sh"),
-            arguments: vec!["-c".to_owned(), format!("echo {nom}; exit {code}")],
+        let etape = |nom: &str, code: &str| {
+            Etape::new(
+                nom,
+                Path::new("/bin/sh"),
+                vec!["-c".to_owned(), format!("echo {nom}; exit {code}")],
+            )
         };
         let chaine = Chaine::lancer(
             &ctx,
@@ -352,11 +393,7 @@ mod tests {
     fn annulation_tue_le_processus() {
         let ctx = egui::Context::default();
         let dossier = tempfile::tempdir().unwrap();
-        let etape = Etape {
-            nom: "long".to_owned(),
-            programme: PathBuf::from("/bin/sleep"),
-            arguments: vec!["30".to_owned()],
-        };
+        let etape = Etape::new("long", Path::new("/bin/sleep"), vec!["30".to_owned()]);
         let chaine = Chaine::lancer(&ctx, vec![etape.clone(), etape], dossier.path().to_path_buf()).unwrap();
         while chaine.etats()[0] != EtatEtape::EnCours {
             std::thread::sleep(Duration::from_millis(20));

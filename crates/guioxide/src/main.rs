@@ -5,6 +5,7 @@
 //! guioxide <pile.nii.gz>…
 //! ```
 //!
+//! - `--calculs` : ouvre la fenêtre « Calculs » de la session ;
 //! - des fichiers NIfTI à la place du jeu : fenêtre « Nouvelle séance » ouverte avec ces piles ;
 //! - `--onglet` : ouvre directement une étape (1 Examen … 4 Simulation) ;
 //! - `--session` : choisit la session dont le libellé contient ce texte (`sub-01 / ses-02`), la première sinon ;
@@ -12,6 +13,7 @@
 //!   la fenêtre ne se redessine pas : écran verrouillé, fenêtre masquée).
 
 mod app;
+mod calculs;
 mod capture;
 mod chaine;
 mod dialogue;
@@ -45,6 +47,7 @@ fn options() -> Result<app::Options, String> {
                 options.onglet = Some(Etape::depuis_numero(n).ok_or(format!("--onglet : 1 à 4\n{USAGE}"))?);
             }
             Some("--session") => options.session = Some(valeur("--session")?.to_string_lossy().into_owned()),
+            Some("--calculs") => options.calculs = true,
             Some("--capture") => options.capture = Some(PathBuf::from(valeur("--capture")?)),
             Some("-h" | "--help") => return Err(USAGE.to_owned()),
             Some(o) if o.starts_with("--") => return Err(format!("option inconnue : {o}\n{USAGE}")),

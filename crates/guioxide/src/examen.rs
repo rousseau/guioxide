@@ -2,23 +2,39 @@
 
 use std::sync::Arc;
 
-use egui::{Color32, RichText, Sense, Stroke, TextureHandle, TextureOptions, Ui, Vec2};
+use egui::{Color32, Rect, RichText, Sense, Stroke, TextureHandle, TextureOptions, Ui, Vec2};
 use egui_plot::{Bar, BarChart, Plot, VLine};
 use guioxide_bids::{CheminsSession, Etape, Session};
 use guioxide_data::QualiteCoupe;
 use guioxide_geom::{Orientation, PointMonde, Volume};
-use guioxide_view::coupe::{Couche, Rendu, TypeVue, VueCoupe, vignette};
+use guioxide_view::coupe::{Couche, Rendu, TypeVue, VueCoupe, boite_du_masque, vignette, vignette_cadree};
 use guioxide_view::theme;
 
 use crate::etapes::{
-    Base, CONTOUR, DonneesSession, SourceQualite, decimal2, ligne_couche, message_central, nom_court, panneau_curseur,
+    Base, CONTOUR, DonneesSession, SourceQualite, Statut, decimal2, ligne_couche, message_central, nom_court,
+    panneau_curseur,
 };
 
 /// Part de coupes conservées sous laquelle une pile est signalée « à revoir ».
 const PART_MINIMALE: f64 = 0.8;
 
-/// Côté des vignettes (pixels) : bandeau et mosaïque.
-const VIGNETTE: usize = 96;
+/// Côté des vignettes (pixels de texture) : bandeau et mosaïque, assez fin pour une mosaïque en plein écran.
+const VIGNETTE: usize = 320;
+
+/// Plan anatomique visé par l'opérateur, d'après le nom de la séquence (`acq-hastecor` → coronal) ; `None` si le
+/// nom ne le dit pas.
+fn plan_de_la_sequence(nom: &str) -> Option<&'static str> {
+    let acq = nom.split('_').find_map(|m| m.strip_prefix("acq-"))?.to_lowercase();
+    if acq.ends_with("ax") || acq.contains("axial") || acq.contains("tra") {
+        Some("axial")
+    } else if acq.ends_with("cor") || acq.contains("coronal") {
+        Some("coronal")
+    } else if acq.ends_with("sag") || acq.contains("sagittal") {
+        Some("sagittal")
+    } else {
+        None
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -36,15 +52,20 @@ pub struct Examen {
     seuil: f64,
     /// Qualité affichée, si l'utilisateur en a choisi une ; sinon [`DonneesSession::source_par_defaut`].
     source: Option<SourceQualite>,
-    /// Vignettes de la pile affichée, avec le volume dont elles viennent.
-    vignettes: Option<(usize, Vec<TextureHandle>)>,
+    /// Vignettes de la pile affichée : pile, cadrées sur le masque ou non, textures.
+    vignettes: Option<(usize, bool, Vec<TextureHandle>)>,
 }
 
 impl Default for Examen {
     fn default() -> Self {
         Examen {
             pile: 0,
-            mode: Mode::Pile,
+            // `GUIOXIDE_MOSAIQUE=1` : mosaïque d'emblée (captures de contrôle).
+            mode: if std::env::var_os("GUIOXIDE_MOSAIQUE").is_some() {
+                Mode::Mosaique
+            } else {
+                Mode::Pile
+            },
             vue: None,
             fenetre: None,
             masque_visible: true,
@@ -156,17 +177,30 @@ impl Examen {
             if self.vue.is_none() {
                 self.vue = Some(VueCoupe::new(TypeVue::Native(*v.volume.affine())));
             }
-            if self.vignettes.as_ref().is_none_or(|(i, _)| *i != n) {
+            // Vignettes cadrées sur le cerveau quand le masque est lu (il est sur la grille de la pile).
+            let masque_lu = masque.pret().is_some();
+            let attendre_masque = matches!(masque, Statut::EnCours);
+            if !attendre_masque
+                && self
+                    .vignettes
+                    .as_ref()
+                    .is_none_or(|(i, lu, _)| *i != n || *lu != masque_lu)
+            {
+                let boite = masque
+                    .pret()
+                    .filter(|m| m.volume.dims() == v.volume.dims())
+                    .and_then(|m| boite_du_masque(&m.volume, 0.25));
                 let textures = (0..v.volume.dims()[2])
                     .map(|k| {
-                        ui.ctx().load_texture(
-                            format!("vignette-{k}"),
-                            vignette(&v.volume, k, VIGNETTE),
-                            TextureOptions::LINEAR,
-                        )
+                        let image = match boite {
+                            Some(b) => vignette_cadree(&v.volume, k, VIGNETTE, b),
+                            None => vignette(&v.volume, k, VIGNETTE),
+                        };
+                        ui.ctx()
+                            .load_texture(format!("vignette-{k}"), image, TextureOptions::LINEAR)
                     })
                     .collect();
-                self.vignettes = Some((n, textures));
+                self.vignettes = Some((n, masque_lu, textures));
             }
         }
         if let Some(v) = masque.pret() {
@@ -257,9 +291,10 @@ impl Examen {
             .show(ui, |ui| {
                 let entete = |ui: &mut Ui, t: &str| ui.label(RichText::new(t).small().color(theme::TEXTE_SECONDAIRE));
                 entete(ui, "pile");
-                entete(ui, "plan scanner").on_hover_text(
-                    "Plan des coupes dans le repère du scanner, déduit de l'affine : en IRM fœtale, ce n'est pas \
-                     le plan anatomique du fœtus que désigne le nom de la séquence (ax, cor, sag).",
+                entete(ui, "plan").on_hover_text(
+                    "Plan anatomique visé, lu dans le nom de la séquence (acq-…ax, cor, sag). Le plan des coupes \
+                     dans le repère de l'appareil (affine) est en infobulle : chez le fœtus, il ne dit rien du plan \
+                     anatomique.",
                 );
                 entete(ui, "coupes");
                 entete(
@@ -283,8 +318,14 @@ impl Examen {
                     match geometrie {
                         Some(Ok((dims, affine))) => {
                             let t = affine.tailles();
-                            ui.label(Orientation::des_coupes(affine).nom())
-                                .on_hover_text("plan dans le repère du scanner, pas le plan anatomique du fœtus");
+                            let appareil = Orientation::des_coupes(affine).nom();
+                            let aide = format!("repère de l'appareil : {appareil} (pas le plan anatomique du fœtus)");
+                            match plan_de_la_sequence(&p.nom) {
+                                Some(plan) => ui.label(plan).on_hover_text(aide),
+                                None => ui
+                                    .label(RichText::new("—").color(theme::TEXTE_SECONDAIRE))
+                                    .on_hover_text(format!("le nom de la séquence ne dit pas le plan ; {aide}")),
+                            };
                             ui.label(RichText::new(format!("{} coupes", dims[2])).color(theme::TEXTE_SECONDAIRE))
                                 .on_hover_text(format!(
                                     "{} × {} × {} mm",
@@ -476,7 +517,9 @@ impl Examen {
         source: Option<SourceQualite>,
         curseur: &mut PointMonde,
     ) {
-        let Some((_, textures)) = &self.vignettes else { return };
+        let Some((_, _, textures)) = &self.vignettes else {
+            return;
+        };
         let courante = volume.vers_voxel(curseur.0)[2].round() as i64;
         egui::ScrollArea::horizontal().show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -500,18 +543,45 @@ impl Examen {
         source: Option<SourceQualite>,
         curseur: &mut PointMonde,
     ) {
-        let Some((_, textures)) = &self.vignettes else { return };
+        let Some((_, _, textures)) = &self.vignettes else {
+            return;
+        };
+        if source.is_some() {
+            legende_mosaique(ui, source);
+        }
         let mut choisie = None;
+        let n = textures.len().max(1);
+        let rapport = textures.first().map_or(1.0, |t| t.aspect_ratio().max(0.01));
+        let zone = ui.available_size();
+        let ecart = 6.0;
+        // Nombre de colonnes qui donne les plus grandes vignettes tenant dans la zone ; au-dessous de 140 points de
+        // large, la mosaïque défile.
+        let largeur = (1..=n)
+            .map(|c| {
+                let lignes = n.div_ceil(c) as f32;
+                let l = (zone.x - ecart * (c as f32 - 1.0)) / c as f32;
+                let h = (zone.y - ecart * (lignes - 1.0)) / lignes;
+                l.min(h * rapport)
+            })
+            .fold(0.0_f32, f32::max)
+            .max(140.0)
+            .min(zone.x);
+        let colonnes = (((zone.x + ecart) / (largeur + ecart)).floor() as usize).max(1);
         egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                for (k, t) in textures.iter().enumerate() {
-                    let taille = Vec2::new(160.0, 160.0 / t.aspect_ratio().max(0.01));
-                    let cadre = self.cadre(k, false, qualite, source);
-                    if vignette_cliquable(ui, t, taille, cadre, k, qualite).clicked() {
-                        choisie = Some(k);
+            ui.spacing_mut().item_spacing = Vec2::splat(ecart);
+            for rangee in textures.chunks(colonnes).enumerate() {
+                let (r, ligne) = rangee;
+                ui.horizontal(|ui| {
+                    for (j, t) in ligne.iter().enumerate() {
+                        let k = r * colonnes + j;
+                        let taille = Vec2::new(largeur, largeur / t.aspect_ratio().max(0.01));
+                        let cadre = self.cadre(k, false, qualite, source);
+                        if vignette_cliquable(ui, t, taille, cadre, k, qualite).clicked() {
+                            choisie = Some(k);
+                        }
                     }
-                }
-            });
+                });
+            }
         });
         if let Some(k) = choisie {
             aller_a_la_coupe(volume, k, curseur);
@@ -552,30 +622,55 @@ fn vignette_cliquable(
     ui.painter().image(
         texture.id(),
         rect,
-        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
         Color32::WHITE,
     );
     if let Some(c) = cadre {
         ui.painter()
             .rect_stroke(rect, 0.0, Stroke::new(2.0, c), egui::StrokeKind::Inside);
     }
+    let grande = taille.x >= 120.0;
     ui.painter().text(
-        rect.left_top() + Vec2::splat(3.0),
+        rect.left_top() + Vec2::splat(4.0),
         egui::Align2::LEFT_TOP,
         k.to_string(),
-        egui::FontId::monospace(10.0),
+        egui::FontId::monospace(if grande { 12.0 } else { 10.0 }),
         theme::TEXTE_SECONDAIRE,
     );
     let q = qualite.iter().find(|q| q.slice == k);
+    // Marqueur : utilisée (✓) ou exclue (✗, avec le motif sur les grandes vignettes).
+    if let Some(q) = q {
+        let (texte, couleur) = if q.excluded {
+            let motif = q.reason.as_deref().map(nom_du_motif).unwrap_or_default();
+            let texte = if grande {
+                format!("✗ {motif}")
+            } else {
+                "✗".to_owned()
+            };
+            (texte, couleur_du_motif(q.reason.as_deref()))
+        } else if q.registered {
+            ("✓".to_owned(), theme::TERMINE)
+        } else {
+            ("·".to_owned(), theme::TEXTE_SECONDAIRE)
+        };
+        let police = egui::FontId::proportional(if grande { 13.0 } else { 11.0 });
+        let galee = ui.painter().layout_no_wrap(texte, police, couleur);
+        let coin = rect.left_bottom() + Vec2::new(4.0, -4.0 - galee.size().y);
+        let fond = Rect::from_min_size(coin - Vec2::splat(3.0), galee.size() + Vec2::splat(6.0));
+        ui.painter().rect_filled(fond, 4.0, Color32::from_black_alpha(170));
+        ui.painter().galley(coin, galee, couleur);
+    }
     let infobulle = match q {
         Some(q) => format!(
             "coupe {k}\nscore {} → {}\n{}{}",
             q.score_before.map_or("—".into(), decimal2),
             q.score_after.map_or("—".into(), decimal2),
             if q.excluded {
-                "exclue ou signalée"
+                "exclue de la reconstruction"
+            } else if q.registered {
+                "utilisée (recalée)"
             } else {
-                "conservée"
+                "non recalée"
             },
             q.reason
                 .as_deref()
@@ -585,6 +680,35 @@ fn vignette_cliquable(
         None => format!("coupe {k}"),
     };
     reponse.on_hover_text(infobulle)
+}
+
+/// Légende de la mosaïque : marqueurs et motifs d'exclusion.
+fn legende_mosaique(ui: &mut Ui, source: Option<SourceQualite>) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("✓").color(theme::TERMINE));
+        ui.label(RichText::new("utilisée").small().color(theme::TEXTE_SECONDAIRE));
+        ui.label(RichText::new("✗").color(theme::ERREUR));
+        ui.label(RichText::new("exclue").small().color(theme::TEXTE_SECONDAIRE));
+        ui.label(
+            RichText::new(match source {
+                Some(SourceQualite::Avant) => "· contrôle des acquisitions (avant reconstruction)",
+                _ => "· d'après la reconstruction",
+            })
+            .small()
+            .color(theme::TEXTE_SECONDAIRE),
+        );
+        ui.label(
+            RichText::new("■ hors masque")
+                .small()
+                .color(couleur_du_motif(Some("hors_masque"))),
+        )
+        .on_hover_text(
+            "Le masque du cerveau (medx fetalbet) est vide sur cette coupe : le SVR ne s'en sert pas. C'est \
+                 normal pour les premières et dernières coupes d'une pile, qui passent à côté du cerveau ; si une \
+                 coupe qui montre le cerveau est « hors masque », c'est le masque qui est à revoir.",
+        );
+    });
+    ui.add_space(4.0);
 }
 
 /// Place le curseur sur la coupe `k` de la pile, en gardant sa position dans le plan des coupes.
@@ -715,6 +839,17 @@ mod tests {
             examen.cadre(0, true, &exclue, Some(SourceQualite::Avant)),
             Some(theme::TEXTE)
         );
+    }
+
+    #[test]
+    fn plan_lu_dans_le_nom_de_la_sequence() {
+        assert_eq!(plan_de_la_sequence("sub-a_ses-1_acq-hastecor_T2w"), Some("coronal"));
+        assert_eq!(
+            plan_de_la_sequence("sub-a_ses-1_acq-trufisag_run-1_T2w"),
+            Some("sagittal")
+        );
+        assert_eq!(plan_de_la_sequence("sub-a_ses-1_acq-hasteax_T2w"), Some("axial"));
+        assert_eq!(plan_de_la_sequence("sub-a_ses-1_run-1_T2w"), None);
     }
 
     #[test]

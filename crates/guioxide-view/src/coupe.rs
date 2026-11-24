@@ -248,7 +248,60 @@ impl VueCoupe {
             egui::Align2::LEFT_TOP,
             self.type_vue.nom().to_owned(),
         );
+        self.barre_outils(ui, rect, couches, reponse.hovered() || reponse.dragged());
         reponse
+    }
+
+    /// Boutons de la vue (recadrer, contraste automatique) et rappel des gestes, montrés au survol.
+    fn barre_outils(&mut self, ui: &mut Ui, rect: Rect, couches: &mut [Couche], survolee: bool) {
+        let image = couches
+            .iter_mut()
+            .find(|c| c.visible && matches!(c.rendu, Rendu::Image { .. }));
+        let fenetre_manuelle = matches!(
+            image.as_ref().map(|c| &c.rendu),
+            Some(Rendu::Image { fenetre: Some(_) })
+        );
+        let recadree = self.centre.is_none() && self.zoom.is_none();
+        let souris_dedans = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| rect.contains(p));
+        if !(survolee || souris_dedans) || rect.width() < 220.0 {
+            return;
+        }
+        let mut x = rect.right() - 6.0;
+        let mut bouton = |ui: &mut Ui, texte: &str, aide: &str, actif: bool| {
+            let galee = ui
+                .painter()
+                .layout_no_wrap(texte.to_owned(), egui::FontId::proportional(12.0), theme::TEXTE);
+            let taille = galee.size() + Vec2::new(14.0, 8.0);
+            let zone = Rect::from_min_size(Pos2::new(x - taille.x, rect.top() + 6.0), taille);
+            x -= taille.x + 4.0;
+            ui.put(
+                zone,
+                egui::Button::new(egui::RichText::new(texte).size(12.0)).fill(theme::PANNEAU.gamma_multiply(0.9)),
+            )
+            .on_hover_text(aide)
+            .clicked()
+                && actif
+        };
+        if bouton(
+            ui,
+            "Contraste auto",
+            "fenêtrage automatique (centiles 1 – 99 %)",
+            fenetre_manuelle,
+        ) && let Some(c) = image
+            && let Rendu::Image { fenetre } = &mut c.rendu
+        {
+            *fenetre = None;
+        }
+        if bouton(ui, "Recadrer", "centrer et ajuster le zoom (ou double-clic)", !recadree) {
+            self.recadrer();
+        }
+        ui.painter_at(rect).text(
+            rect.left_bottom() + Vec2::new(6.0, -6.0),
+            egui::Align2::LEFT_BOTTOM,
+            "pincer ou Cmd + molette : zoom · Maj + glisser : déplacer · Option + glisser : contraste · molette : coupe",
+            egui::FontId::proportional(11.0),
+            theme::TEXTE_SECONDAIRE.gamma_multiply(0.8),
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -268,21 +321,30 @@ impl VueCoupe {
             let d = p - rect.center();
             (centre_plan.0 + (d.x / zoom) as f64, centre_plan.1 - (d.y / zoom) as f64)
         };
+        // Au trackpad, sans bouton du milieu ni glissé au bouton droit : Maj déplace la vue, Option (Alt) règle le
+        // contraste.
+        let modificateurs = ui.input(|i| i.modifiers);
+        let principal = reponse.dragged_by(egui::PointerButton::Primary);
+        let deplacer = reponse.dragged_by(egui::PointerButton::Middle) || (principal && modificateurs.shift);
+        let contraste = reponse.dragged_by(egui::PointerButton::Secondary) || (principal && modificateurs.alt);
         // Clic ou glissé du bouton principal : place le curseur.
-        if (reponse.clicked() || reponse.dragged_by(egui::PointerButton::Primary))
+        if (reponse.clicked() || principal)
+            && !deplacer
+            && !contraste
             && let Some(p) = reponse.interact_pointer_pos()
         {
             let (a, b) = vers_plan(p);
             curseur.0 = plan.vers_monde(a, b);
         }
-        // Glissé du bouton du milieu : déplacement de la vue.
-        if reponse.dragged_by(egui::PointerButton::Middle) {
+        // Glissé du bouton du milieu, ou Maj + glissé : déplacement de la vue.
+        if deplacer {
             let d = reponse.drag_delta();
             let (a, b) = (centre_plan.0 - (d.x / zoom) as f64, centre_plan.1 + (d.y / zoom) as f64);
             self.centre = Some(plan.vers_monde(a, b));
         }
-        // Glissé du bouton droit : fenêtrage de la première image (horizontal : largeur, vertical : niveau).
-        if reponse.dragged_by(egui::PointerButton::Secondary)
+        // Glissé du bouton droit, ou Option + glissé : fenêtrage de la première image (horizontal : largeur,
+        // vertical : niveau).
+        if contraste
             && let Some(couche) = couches
                 .iter_mut()
                 .find(|c| c.visible && matches!(c.rendu, Rendu::Image { .. }))
@@ -420,16 +482,46 @@ pub fn composer(plan: &Plan, centre: (f64, f64), taille: [usize; 2], pas: f64, c
 /// automatique de la pile.
 pub fn vignette(volume: &Arc<Volume>, k: usize, cote: usize) -> ColorImage {
     let [nx, ny, _] = volume.dims();
-    let centre = volume.vers_monde([(nx as f64 - 1.0) / 2.0, (ny as f64 - 1.0) / 2.0, k as f64]);
+    vignette_cadree(volume, k, cote, [0.0, nx as f64 - 1.0, 0.0, ny as f64 - 1.0])
+}
+
+/// Vignette de la coupe `k` limitée à la zone `[i0, i1, j0, j1]` (indices de voxel) : par exemple la boîte du masque
+/// du cerveau, pour que le cerveau occupe la vignette.
+pub fn vignette_cadree(volume: &Arc<Volume>, k: usize, cote: usize, zone: [f64; 4]) -> ColorImage {
+    let [i0, i1, j0, j1] = zone;
+    let centre = volume.vers_monde([(i0 + i1) / 2.0, (j0 + j1) / 2.0, k as f64]);
     let plan = Plan::natif(volume.affine(), centre);
     let [ti, tj, _] = volume.taille_voxel();
-    let (lu, lv) = (nx as f64 * ti, ny as f64 * tj);
+    let (lu, lv) = ((i1 - i0 + 1.0) * ti, (j1 - j0 + 1.0) * tj);
     let pas = lu.max(lv) / cote as f64;
     let taille = [
         ((lu / pas).round() as usize).max(1),
         ((lv / pas).round() as usize).max(1),
     ];
     composer(&plan, (0.0, 0.0), taille, pas, &[Couche::image(volume.clone())])
+}
+
+/// Boîte `[i0, i1, j0, j1]` des voxels d'un masque (> ½) sur toutes ses coupes, élargie de `marge` (part de la
+/// taille de la boîte de chaque côté) et bornée au volume ; `None` si le masque est vide.
+pub fn boite_du_masque(masque: &Volume, marge: f64) -> Option<[f64; 4]> {
+    let [nx, ny, _] = masque.dims();
+    let (mut i0, mut i1, mut j0, mut j1) = (usize::MAX, 0, usize::MAX, 0);
+    for (n, v) in masque.voxels().iter().enumerate() {
+        if *v > 0.5 {
+            let (i, j) = (n % nx, (n / nx) % ny);
+            (i0, i1, j0, j1) = (i0.min(i), i1.max(i), j0.min(j), j1.max(j));
+        }
+    }
+    if i0 == usize::MAX {
+        return None;
+    }
+    // Boîte carrée (en voxels du plan) pour des vignettes régulières, puis marge.
+    let (ci, cj) = ((i0 + i1) as f64 / 2.0, (j0 + j1) as f64 / 2.0);
+    let demi = ((i1 - i0).max(j1 - j0) as f64 / 2.0 + 1.0) * (1.0 + marge);
+    let borne = |c: f64, n: usize| ((c - demi).max(0.0), (c + demi).min(n as f64 - 1.0));
+    let (a, b) = borne(ci, nx);
+    let (c, d) = borne(cj, ny);
+    Some([a, b, c, d])
 }
 
 fn melanger(fond: Color32, dessus: Color32, alpha: f32) -> Color32 {
@@ -508,6 +600,18 @@ mod tests {
             [0.0, 0.0, 6.0],
         );
         assert_ne!(p1, p3);
+    }
+
+    #[test]
+    fn boite_d_un_masque() {
+        let mut voxels = vec![0.0; 10 * 10 * 2];
+        voxels[3 + 10 * 4] = 1.0; // (3, 4, 0)
+        voxels[100 + 5 + 10 * 6] = 1.0; // (5, 6, 1)
+        let vol = Volume::new([10, 10, 2], Affine::IDENTITE, voxels).unwrap();
+        // Centre (4, 5), demi-côté (2 / 2 + 1) = 2.
+        assert_eq!(boite_du_masque(&vol, 0.0), Some([2.0, 6.0, 3.0, 7.0]));
+        let vide = Volume::new([2, 2, 1], Affine::IDENTITE, vec![0.0; 4]).unwrap();
+        assert_eq!(boite_du_masque(&vide, 0.2), None);
     }
 
     #[test]

@@ -1,24 +1,36 @@
 //! Nouvelle séance à partir de piles NIfTI choisies ou glissées dans la fenêtre : guioxide en fait un petit jeu BIDS
-//! (`sub-X/ses-Y/anat/sub-X_ses-Y_run-N_T2w.nii.gz`), puis lance la chaîne de calcul ([`crate::chaine`]).
+//! (`sub-X/ses-Y/anat/sub-X_ses-Y[_acq-…][_run-N]_T2w.nii.gz`) et l'ouvre sur l'onglet Examen, pour vérifier les piles
+//! avant de lancer quoi que ce soit (fenêtre « Calculs », [`crate::calculs`]).
 //!
 //! Les piles sont copiées telles quelles (un `.nii` est seulement compressé en `.nii.gz`, que lisent les outils) :
-//! guioxide n'en interprète pas le contenu ; l'en-tête est lu par `medoxide-core` pour l'affichage.
+//! guioxide n'en interprète pas le contenu ; l'en-tête est lu par `medoxide-core` pour l'affichage. Les entités du
+//! nom d'origine (`sub-`, `ses-`, `acq-`, `run-`) sont reprises : le nom de la séquence (`acq-hastecor`) dit le plan
+//! anatomique visé par l'opérateur, que l'affine (repère de l'appareil) ne donne pas chez le fœtus.
 
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
-use egui::{Color32, RichText, Ui};
+use egui::{RichText, Ui};
 use guioxide_bids::maintenant_iso;
 use guioxide_view::theme;
 
-use crate::chaine::{self, Chaine, Etape, EtatEtape, Outil};
 use crate::dialogue::Dialogue;
 
 /// Vrai pour un fichier NIfTI (`.nii` ou `.nii.gz`).
 pub fn est_nifti(chemin: &Path) -> bool {
     let nom = chemin.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
     nom.ends_with(".nii") || nom.ends_with(".nii.gz")
+}
+
+/// Valeur d'une entité BIDS (`acq`, `run`…) dans un nom de fichier, si elle est une étiquette valide.
+fn entite(chemin: &Path, cle: &str) -> Option<String> {
+    let nom = chemin.file_name()?.to_str()?;
+    let base = nom.split('.').next()?;
+    base.split('_')
+        .find_map(|morceau| morceau.strip_prefix(cle)?.strip_prefix('-'))
+        .filter(|v| etiquette_valide(v))
+        .map(str::to_owned)
 }
 
 /// Une pile choisie, avec ce qu'en dit l'en-tête.
@@ -49,19 +61,14 @@ impl Pile {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Mouvement {
-    S2s,
-    S2v,
-}
-
 /// Ce que l'application doit faire après la fenêtre d'import.
 pub enum Demande {
-    /// Jeu créé : l'ouvrir et suivre la chaîne lancée.
+    /// Jeu créé : l'ouvrir sur l'onglet Examen.
     Ouvrir(PathBuf),
 }
 
-/// Fenêtre « Nouvelle séance » et chaîne en cours.
+/// Fenêtre « Nouvelle séance ».
+#[derive(Default)]
 pub struct Import {
     pub ouverte: bool,
     piles: Vec<Pile>,
@@ -69,50 +76,25 @@ pub struct Import {
     session: String,
     age: String,
     destination: String,
-    mouvement: Mouvement,
-    simulation: bool,
-    pas: u32,
+    /// Vrai tant que l'utilisateur n'a pas modifié le dossier : il suit alors le participant.
+    destination_auto: bool,
     erreur: Option<String>,
     choix_piles: Option<Dialogue<Vec<PathBuf>>>,
     choix_destination: Option<Dialogue>,
-    pub chaine: Option<Chaine>,
-    /// Fenêtre de suivi de la chaîne affichée.
-    pub suivi: bool,
 }
 
-impl Default for Import {
-    fn default() -> Self {
-        Import {
-            ouverte: false,
-            piles: Vec::new(),
-            participant: "01".to_owned(),
-            session: "01".to_owned(),
-            age: String::new(),
-            destination: String::new(),
-            mouvement: Mouvement::S2s,
-            simulation: true,
-            pas: 2000,
-            erreur: None,
-            choix_piles: None,
-            choix_destination: None,
-            chaine: None,
-            suivi: false,
-        }
-    }
-}
-
-/// Dossier proposé : `~/guioxide/<date>-<heure>` (un nouveau à chaque séance).
-fn destination_par_defaut() -> String {
+/// Dossier proposé : `~/guioxide/sub-<participant>-<date>-<heure>`.
+fn destination_par_defaut(participant: &str) -> String {
     let maison = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
     let horodatage: String = maintenant_iso()
         .chars()
         .filter(|c| c.is_ascii_digit() || *c == 'T')
         .collect();
-    maison
-        .join("guioxide")
-        .join(horodatage.replace('T', "-"))
-        .display()
-        .to_string()
+    let nom = format!(
+        "sub-{participant}-{}",
+        &horodatage.replace('T', "-")[..13.min(horodatage.len())]
+    );
+    maison.join("guioxide").join(nom).display().to_string()
 }
 
 /// Étiquette BIDS : lettres et chiffres seulement.
@@ -122,9 +104,14 @@ fn etiquette_valide(e: &str) -> bool {
 
 impl Import {
     /// Ajoute des piles (sans doublon) et ouvre la fenêtre ; les fichiers qui ne sont pas des NIfTI sont ignorés.
+    /// Participant et session sont repris du nom de la première pile qui les porte.
     pub fn ajouter(&mut self, chemins: impl IntoIterator<Item = PathBuf>) {
         for chemin in chemins {
             if est_nifti(&chemin) && !self.piles.iter().any(|p| p.chemin == chemin) {
+                if self.piles.is_empty() {
+                    self.participant = entite(&chemin, "sub").unwrap_or_default();
+                    self.session = entite(&chemin, "ses").unwrap_or_default();
+                }
                 self.piles.push(Pile::lire(chemin));
             }
         }
@@ -132,8 +119,15 @@ impl Import {
     }
 
     pub fn ouvrir(&mut self) {
-        if !self.ouverte && self.destination.is_empty() {
-            self.destination = destination_par_defaut();
+        if self.participant.is_empty() {
+            self.participant = "01".to_owned();
+        }
+        if self.session.is_empty() {
+            self.session = "01".to_owned();
+        }
+        if !self.ouverte && (self.destination.is_empty() || self.destination_auto) {
+            self.destination = destination_par_defaut(&self.participant);
+            self.destination_auto = true;
         }
         self.ouverte = true;
     }
@@ -150,11 +144,7 @@ impl Import {
         self.ouvrir();
     }
 
-    pub fn en_cours(&self) -> bool {
-        self.chaine.as_ref().is_some_and(|c| !c.finie())
-    }
-
-    /// Fenêtres d'import et de suivi ; rend la demande à exécuter par l'application.
+    /// Fenêtre d'import ; rend la demande à exécuter par l'application.
     pub fn afficher(&mut self, ctx: &egui::Context) -> Option<Demande> {
         if let Some(r) = self.choix_piles.as_ref().and_then(Dialogue::resultat) {
             self.choix_piles = None;
@@ -164,6 +154,7 @@ impl Import {
             self.choix_destination = None;
             if let Some(d) = r {
                 self.destination = d.display().to_string();
+                self.destination_auto = false;
             }
         }
         let mut demande = None;
@@ -177,7 +168,6 @@ impl Import {
             .collapsible(false)
             .show(ctx, |ui| demande = self.formulaire(ui));
         self.ouverte = ouverte && demande.is_none();
-        self.fenetre_suivi(ctx);
         demande
     }
 
@@ -195,7 +185,6 @@ impl Import {
                     if ui.small_button("Retirer").clicked() {
                         retirer = Some(i);
                     }
-                    ui.label(RichText::new(format!("run-{}", i + 1)).monospace().strong());
                     ui.add(egui::Label::new(RichText::new(nom).monospace()).truncate())
                         .on_hover_text(pile.chemin.display().to_string());
                 });
@@ -216,103 +205,73 @@ impl Import {
         }
         ui.add_space(8.0);
         ui.separator();
-        egui::Grid::new("seance").num_columns(2).show(ui, |ui| {
-            ui.label("Participant");
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("sub-").monospace());
-                ui.add(egui::TextEdit::singleline(&mut self.participant).desired_width(80.0));
-                ui.label(RichText::new("ses-").monospace());
-                ui.add(egui::TextEdit::singleline(&mut self.session).desired_width(80.0));
+        egui::Grid::new("seance")
+            .num_columns(2)
+            .spacing([10.0, 6.0])
+            .show(ui, |ui| {
+                ui.label("Participant");
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("sub-").monospace());
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut self.participant).desired_width(90.0))
+                        .changed()
+                        && self.destination_auto
+                    {
+                        self.destination = destination_par_defaut(&self.participant);
+                    }
+                    ui.label(RichText::new("ses-").monospace());
+                    ui.add(egui::TextEdit::singleline(&mut self.session).desired_width(70.0));
+                });
+                ui.end_row();
+                ui.label("Âge gestationnel");
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.age)
+                            .hint_text("facultatif")
+                            .desired_width(80.0),
+                    );
+                    ui.label("SA");
+                });
+                ui.end_row();
+                ui.label("Dossier de l'étude");
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut self.destination).desired_width(380.0))
+                        .changed()
+                    {
+                        self.destination_auto = false;
+                    }
+                    if ui.button("Parcourir…").clicked() && self.choix_destination.is_none() {
+                        self.choix_destination = Some(Dialogue::dossier(ui.ctx(), "Dossier de l'étude à créer"));
+                    }
+                });
+                ui.end_row();
             });
-            ui.end_row();
-            ui.label("Âge gestationnel");
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.age)
-                        .hint_text("facultatif")
-                        .desired_width(80.0),
-                );
-                ui.label("SA");
-            });
-            ui.end_row();
-            ui.label("Dossier de l'étude");
-            ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.destination).desired_width(380.0));
-                if ui.button("Parcourir…").clicked() && self.choix_destination.is_none() {
-                    self.choix_destination = Some(Dialogue::dossier(ui.ctx(), "Dossier de l'étude à créer"));
-                }
-            });
-            ui.end_row();
-            ui.label("Reconstruction");
-            ui.horizontal(|ui| {
-                ui.radio_value(
-                    &mut self.mouvement,
-                    Mouvement::S2s,
-                    "coupe-coupe (s2s, ~10 min sur le Mac)",
-                );
-                ui.radio_value(&mut self.mouvement, Mouvement::S2v, "coupe-volume (s2v, plus long)");
-            });
-            ui.end_row();
-            ui.label("Simulation");
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.simulation, "gyroxide, hémisphère gauche");
-                ui.add_enabled(
-                    self.simulation,
-                    egui::DragValue::new(&mut self.pas).range(10..=100_000).suffix(" pas"),
-                );
-            });
-            ui.end_row();
-        });
         ui.add_space(6.0);
         ui.label(
             RichText::new(
-                "Étapes : medx fetalbet → medx svr recon → medx bounti → surfx run → gyroxide mesh → gyroxide run",
+                "La séance s'ouvre sur l'onglet Examen pour vérifier les piles ; les calculs se lancent ensuite, \
+                 étape par étape ou à la suite, depuis le bouton « Calculs ».",
             )
             .small()
             .color(theme::TEXTE_SECONDAIRE),
         );
-        ui.add_space(6.0);
-        let outils = self.outils();
-        for (outil, trouve) in &outils {
-            let (texte, couleur) = match trouve {
-                Some(chemin) => (
-                    format!("{} : {}", outil.binaire(), chemin.display()),
-                    theme::TEXTE_SECONDAIRE,
-                ),
-                None => (
-                    format!(
-                        "{} introuvable (PATH, ~/.cargo/bin, ~/Exp/oxide/…/target/release, ou {})",
-                        outil.binaire(),
-                        match outil {
-                            Outil::Medx => "GUIOXIDE_MEDX",
-                            Outil::Surfx => "GUIOXIDE_SURFX",
-                            Outil::Gyroxide => "GUIOXIDE_GYROXIDE",
-                        }
-                    ),
-                    theme::ERREUR,
-                ),
-            };
-            ui.label(RichText::new(texte).small().monospace().color(couleur));
-        }
         if let Some(e) = &self.erreur {
             ui.add_space(4.0);
             ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));
         }
         ui.add_space(8.0);
-        let pret = self.piles.len() >= 2 && !self.en_cours();
         let mut demande = None;
         ui.horizontal(|ui| {
-            let bouton = ui.add_enabled(
-                pret,
-                egui::Button::new(RichText::new("Créer la séance et lancer").strong()),
-            );
-            if self.piles.len() < 2 {
-                ui.label(RichText::new("deux piles au moins").color(theme::TEXTE_SECONDAIRE));
-            } else if self.en_cours() {
-                ui.label(RichText::new("une chaîne est déjà en cours").color(theme::TEXTE_SECONDAIRE));
+            let bouton = egui::Button::new(RichText::new("Créer la séance").strong()).fill(theme::ACCENT_DOUX);
+            let bouton = ui.add_enabled(!self.piles.is_empty(), bouton);
+            if self.piles.len() == 1 {
+                ui.label(
+                    RichText::new("la reconstruction demandera deux piles au moins").color(theme::TEXTE_SECONDAIRE),
+                );
             }
             if bouton.clicked() {
-                match self.creer_et_lancer(ui.ctx(), &outils) {
+                match self.creer() {
                     Ok(racine) => {
                         self.erreur = None;
                         self.piles.clear();
@@ -326,15 +285,7 @@ impl Import {
         demande
     }
 
-    fn outils(&self) -> Vec<(Outil, Option<PathBuf>)> {
-        Outil::TOUS
-            .into_iter()
-            .filter(|o| self.simulation || *o != Outil::Gyroxide)
-            .map(|o| (o, chaine::trouver(o)))
-            .collect()
-    }
-
-    fn creer_et_lancer(&mut self, ctx: &egui::Context, outils: &[(Outil, Option<PathBuf>)]) -> Result<PathBuf, String> {
+    fn creer(&mut self) -> Result<PathBuf, String> {
         let (participant, session) = (self.participant.trim().to_owned(), self.session.trim().to_owned());
         if !etiquette_valide(&participant) || !etiquette_valide(&session) {
             return Err("participant et session : lettres et chiffres seulement (sans « sub- » ni « ses- »)".into());
@@ -351,24 +302,6 @@ impl Import {
         if let Some(pile) = self.piles.iter().find(|p| p.resume.is_err()) {
             return Err(format!("pile illisible : {}", pile.chemin.display()));
         }
-        let binaire = |o: Outil| {
-            outils
-                .iter()
-                .find(|(x, _)| *x == o)
-                .and_then(|(_, c)| c.clone())
-                .ok_or(format!("{} introuvable", o.binaire()))
-        };
-        let medx = binaire(Outil::Medx)?;
-        let surfx = binaire(Outil::Surfx)?;
-        let gyroxide = if self.simulation {
-            Some((
-                binaire(Outil::Gyroxide)?,
-                chaine::trouver_tetgen()
-                    .ok_or("TetGen introuvable (gyroxide mesh) : GYROXIDE_TETGEN ou ~/.local/bin")?,
-            ))
-        } else {
-            None
-        };
         let racine = PathBuf::from(self.destination.trim());
         if racine.as_os_str().is_empty() {
             return Err("dossier de l'étude à indiquer".into());
@@ -381,149 +314,33 @@ impl Import {
         }
         let piles: Vec<PathBuf> = self.piles.iter().map(|p| p.chemin.clone()).collect();
         creer_jeu(&racine, &participant, &session, age, &piles)?;
-
-        let racine_texte = racine.display().to_string();
-        let commun = |sous_commandes: &[&str]| -> Vec<String> {
-            let mut a: Vec<String> = sous_commandes.iter().map(|s| s.to_string()).collect();
-            a.extend(
-                [
-                    "--bids",
-                    &racine_texte,
-                    "--participant",
-                    &participant,
-                    "--session",
-                    &session,
-                ]
-                .map(str::to_owned),
-            );
-            a
-        };
-        let etape = |nom: &str, programme: &Path, arguments: Vec<String>| Etape {
-            nom: nom.to_owned(),
-            programme: programme.to_path_buf(),
-            arguments,
-        };
-        let mouvement = match self.mouvement {
-            Mouvement::S2s => "s2s",
-            Mouvement::S2v => "s2v",
-        };
-        let mut svr = commun(&["svr", "recon"]);
-        svr.extend(["--motion", mouvement, "--alpha", "0.05", "--device", "cpu"].map(str::to_owned));
-        let mut etapes = vec![
-            etape("medx fetalbet", &medx, commun(&["fetalbet"])),
-            etape("medx svr", &medx, svr),
-            etape("medx bounti", &medx, commun(&["bounti"])),
-            etape("surfx run", &surfx, commun(&["run"])),
-        ];
-        if let Some((gyroxide, tetgen)) = gyroxide {
-            let mut mesh = commun(&["mesh"]);
-            mesh.extend([
-                "--hemi".to_owned(),
-                "L".to_owned(),
-                "--tetgen".to_owned(),
-                tetgen.display().to_string(),
-            ]);
-            let mut run = commun(&["run"]);
-            run.extend(
-                [
-                    "--label",
-                    "guioxide",
-                    "--hemi",
-                    "L",
-                    "--steps",
-                    &self.pas.to_string(),
-                    "--uniform-growth",
-                    "--no-midplane",
-                ]
-                .map(str::to_owned),
-            );
-            etapes.push(etape("gyroxide mesh", &gyroxide, mesh));
-            etapes.push(etape("gyroxide run", &gyroxide, run));
-        }
-        let journaux = racine.join("derivatives/guioxide/journaux");
-        self.chaine = Some(Chaine::lancer(ctx, etapes, journaux)?);
-        self.suivi = true;
         Ok(racine)
-    }
-
-    /// Fenêtre de suivi : état de chaque étape, fin du journal de l'étape en cours, annulation.
-    fn fenetre_suivi(&mut self, ctx: &egui::Context) {
-        let Some(chaine) = &self.chaine else { return };
-        if !chaine.finie() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(500));
-        }
-        let mut ouverte = self.suivi;
-        egui::Window::new("Calculs")
-            .open(&mut ouverte)
-            .default_width(640.0)
-            .anchor(egui::Align2::RIGHT_BOTTOM, [-12.0, -40.0])
-            .show(ctx, |ui| {
-                let etats = chaine.etats();
-                egui::Grid::new("etapes_chaine").num_columns(3).show(ui, |ui| {
-                    for (i, (etape, etat)) in chaine.etapes.iter().zip(&etats).enumerate() {
-                        let (signe, couleur, detail) = match etat {
-                            EtatEtape::Attente => ("·", theme::TEXTE_SECONDAIRE, String::new()),
-                            EtatEtape::EnCours => (
-                                "▶",
-                                theme::ACCENT,
-                                format!("{} s", chaine.duree_etape_courante().as_secs()),
-                            ),
-                            EtatEtape::Terminee(d) => ("✓", theme::TERMINE, format!("{} s", d.as_secs())),
-                            EtatEtape::Echec(e) => ("✗", theme::ERREUR, e.clone()),
-                            EtatEtape::Annulee => ("–", theme::TEXTE_SECONDAIRE, "non lancée".to_owned()),
-                        };
-                        ui.label(RichText::new(signe).monospace().color(couleur));
-                        ui.label(RichText::new(&etape.nom).monospace())
-                            .on_hover_text(etape.ligne_de_commande());
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(detail).color(couleur));
-                            if !matches!(etat, EtatEtape::Attente | EtatEtape::Annulee)
-                                && ui.small_button("journal").clicked()
-                            {
-                                let _ = std::process::Command::new("open").arg(chaine.journal(i)).spawn();
-                            }
-                        });
-                        ui.end_row();
-                    }
-                });
-                if let Some(i) = chaine.courante() {
-                    ui.add_space(4.0);
-                    egui::Frame::new()
-                        .fill(Color32::from_black_alpha(40))
-                        .inner_margin(6.0)
-                        .show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            ui.label(
-                                RichText::new(chaine::fin_du_journal(&chaine.journal(i), 10))
-                                    .small()
-                                    .monospace(),
-                            );
-                        });
-                }
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    if chaine.finie() {
-                        ui.label(format!("Fini en {} min", chaine.debut.elapsed().as_secs() / 60));
-                    } else {
-                        if ui.button("Annuler").clicked() {
-                            chaine.annuler();
-                        }
-                        ui.label(
-                            RichText::new(format!("{} min", chaine.debut.elapsed().as_secs() / 60))
-                                .color(theme::TEXTE_SECONDAIRE),
-                        );
-                    }
-                    if ui.button("Dossier des journaux").clicked() {
-                        let _ = std::process::Command::new("open").arg(&chaine.journaux).spawn();
-                    }
-                });
-            });
-        self.suivi = ouverte;
     }
 }
 
+/// Noms des piles dans le jeu : entités `acq` et `run` d'origine ; une pile dont le nom serait déjà pris reçoit un
+/// numéro `run` libre.
+fn noms_des_piles(participant: &str, session: &str, piles: &[PathBuf]) -> Vec<String> {
+    let mut noms: Vec<String> = Vec::new();
+    for source in piles {
+        let acq = entite(source, "acq").map(|a| format!("_acq-{a}")).unwrap_or_default();
+        let base = |run: Option<String>| {
+            let run = run.map(|r| format!("_run-{r}")).unwrap_or_default();
+            format!("sub-{participant}_ses-{session}{acq}{run}_T2w")
+        };
+        let mut nom = base(entite(source, "run"));
+        let mut n = 1;
+        while noms.contains(&nom) {
+            nom = base(Some(n.to_string()));
+            n += 1;
+        }
+        noms.push(nom);
+    }
+    noms
+}
+
 /// Crée le jeu BIDS : `dataset_description.json`, `participants.tsv`, `sub-X_sessions.tsv` (si l'âge est connu) et
-/// les piles, numérotées dans l'ordre choisi ; le nom d'origine de chaque pile est gardé dans son `.json`.
+/// les piles ; le chemin d'origine de chaque pile est gardé dans son `.json`.
 fn creer_jeu(
     racine: &Path,
     participant: &str,
@@ -556,8 +373,7 @@ fn creer_jeu(
             format!("session_id\tga_weeks\nses-{session}\t{age}\n"),
         )?;
     }
-    for (i, source) in piles.iter().enumerate() {
-        let base = format!("sub-{participant}_ses-{session}_run-{}_T2w", i + 1);
+    for (source, base) in piles.iter().zip(noms_des_piles(participant, session, piles)) {
         let cible = anat.join(format!("{base}.nii.gz"));
         let gz = source.to_string_lossy().to_lowercase().ends_with(".gz");
         if gz {
@@ -591,26 +407,58 @@ mod tests {
     }
 
     #[test]
+    fn entites_du_nom_d_origine() {
+        let p = Path::new("/g/sub-str002_ses-01_acq-hastesag_run-2_T2w.nii.gz");
+        assert_eq!(entite(p, "sub").as_deref(), Some("str002"));
+        assert_eq!(entite(p, "ses").as_deref(), Some("01"));
+        assert_eq!(entite(p, "acq").as_deref(), Some("hastesag"));
+        assert_eq!(entite(p, "run").as_deref(), Some("2"));
+        assert_eq!(entite(Path::new("/g/axial.nii"), "acq"), None);
+    }
+
+    #[test]
+    fn noms_sans_doublon() {
+        let piles = [
+            PathBuf::from("/g/sub-a_ses-1_acq-hasteax_T2w.nii.gz"),
+            PathBuf::from("/g/sub-a_ses-1_acq-hastesag_run-1_T2w.nii.gz"),
+            PathBuf::from("/g/sub-a_ses-1_acq-hastesag_run-2_T2w.nii.gz"),
+            PathBuf::from("/g/axial.nii"),
+            PathBuf::from("/h/axial.nii"),
+        ];
+        assert_eq!(
+            noms_des_piles("str002", "01", &piles),
+            [
+                "sub-str002_ses-01_acq-hasteax_T2w",
+                "sub-str002_ses-01_acq-hastesag_run-1_T2w",
+                "sub-str002_ses-01_acq-hastesag_run-2_T2w",
+                "sub-str002_ses-01_T2w",
+                "sub-str002_ses-01_run-1_T2w",
+            ]
+        );
+    }
+
+    #[test]
     fn jeu_cree_est_indexe() {
         let dossier = tempfile::tempdir().unwrap();
         let sources = dossier.path().join("sources");
         std::fs::create_dir_all(&sources).unwrap();
-        let a = sources.join("axial.nii.gz");
+        let a = sources.join("sub-x_acq-ax_T2w.nii.gz");
         let b = sources.join("coronal.nii");
         std::fs::write(&a, [0x1f, 0x8b, 0, 0]).unwrap();
         std::fs::write(&b, b"pas vraiment un nifti").unwrap();
         let racine = dossier.path().join("etude");
         creer_jeu(&racine, "01", "02", Some(31.5), &[a, b.clone()]).unwrap();
         let anat = racine.join("sub-01/ses-02/anat");
-        assert!(anat.join("sub-01_ses-02_run-1_T2w.nii.gz").is_file());
-        let compresse = std::fs::read(anat.join("sub-01_ses-02_run-2_T2w.nii.gz")).unwrap();
+        assert!(anat.join("sub-01_ses-02_acq-ax_T2w.nii.gz").is_file());
+        let compresse = std::fs::read(anat.join("sub-01_ses-02_T2w.nii.gz")).unwrap();
         assert_eq!(&compresse[..2], &[0x1f, 0x8b]);
-        let json = std::fs::read_to_string(anat.join("sub-01_ses-02_run-2_T2w.json")).unwrap();
+        let json = std::fs::read_to_string(anat.join("sub-01_ses-02_T2w.json")).unwrap();
         assert!(json.contains("coronal.nii"));
         let jeu = guioxide_bids::indexer(&racine).unwrap();
         assert_eq!(jeu.sujets.len(), 1);
         let session = &jeu.sujets[0].sessions[0];
         assert_eq!(session.age_gestationnel, Some(31.5));
+        assert_eq!(session.piles.len(), 2);
     }
 
     #[test]
@@ -620,43 +468,5 @@ mod tests {
         assert!(!etiquette_valide(""));
         assert!(!etiquette_valide("sub-01"));
         assert!(!etiquette_valide("0 1"));
-    }
-
-    /// Chaîne réelle, par le même chemin que le bouton : `GUIOXIDE_PILES` (piles séparées par `:`) et
-    /// `GUIOXIDE_ETUDE` (dossier à créer) ; reconstruction s2s et 20 pas de simulation.
-    #[test]
-    #[ignore = "outils de la suite et piles réelles"]
-    fn chaine_reelle() {
-        let piles = std::env::var("GUIOXIDE_PILES").expect("GUIOXIDE_PILES");
-        let ctx = egui::Context::default();
-        let mut import = Import::default();
-        import.ajouter(piles.split(':').map(PathBuf::from));
-        import.destination = std::env::var("GUIOXIDE_ETUDE").expect("GUIOXIDE_ETUDE");
-        import.mouvement = Mouvement::S2s;
-        import.pas = 20;
-        let outils = import.outils();
-        let racine = import.creer_et_lancer(&ctx, &outils).unwrap();
-        let chaine = import.chaine.as_ref().unwrap();
-        let mut vu = 0;
-        while !chaine.finie() {
-            std::thread::sleep(std::time::Duration::from_secs(5));
-            let etats = chaine.etats();
-            let faites = etats.iter().filter(|e| matches!(e, EtatEtape::Terminee(_))).count();
-            if faites != vu {
-                vu = faites;
-                eprintln!("{faites}/{} : {:?}", etats.len(), etats);
-            }
-        }
-        let etats = chaine.etats();
-        for (i, e) in etats.iter().enumerate() {
-            if !matches!(e, EtatEtape::Terminee(_)) {
-                eprintln!("{}", chaine::fin_du_journal(&chaine.journal(i), 30));
-            }
-        }
-        assert!(etats.iter().all(|e| matches!(e, EtatEtape::Terminee(_))), "{etats:?}");
-        let jeu = guioxide_bids::indexer(&racine).unwrap();
-        let session = &jeu.sujets[0].sessions[0];
-        let etats = guioxide_bids::etats_session(&jeu.derivees_etude(), &jeu.sujets[0], session);
-        eprintln!("états des quatre onglets : {etats:?}");
     }
 }

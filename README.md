@@ -15,13 +15,22 @@ guioxide **lit** ce que les outils ont écrit, dans un jeu BIDS et ses dérivée
 les outils comme des programmes séparés ; il ne les lie pas comme bibliothèques
 (voir [architecture](docs/architecture.md)).
 
-### Nouvelle séance à partir de piles NIfTI
+### Nouvelle séance à partir de piles NIfTI, calculs
 
 Glisser des fichiers `.nii` / `.nii.gz` dans la fenêtre (ou bouton « Nouvelle séance… ») : guioxide crée un jeu BIDS
-(`sub-X/ses-Y/anat/sub-X_ses-Y_run-N_T2w.nii.gz`, nom d'origine dans le `.json` de chaque pile ; âge gestationnel
-dans `sub-X_sessions.tsv`), puis enchaîne `medx fetalbet`, `medx svr recon`, `medx bounti`, `surfx run`,
-`gyroxide mesh` et `gyroxide run` (facultatifs). Fenêtre « Calculs » : état des étapes, fin du journal, annulation ;
-journaux dans `derivatives/guioxide/journaux/`. Les onglets se mettent à jour à la fin de chaque étape.
+(`sub-X/ses-Y/anat/sub-X_ses-Y[_acq-…][_run-N]_T2w.nii.gz` ; participant, session, `acq` et `run` repris du nom
+d'origine ; chemin d'origine dans le `.json` de chaque pile ; âge gestationnel dans `sub-X_sessions.tsv`) et l'ouvre
+sur l'onglet Examen pour vérifier les piles. Rien n'est lancé d'office.
+
+Bouton « Calculs » (toute session choisie, importée ou non) : chaque étape se lance seule, ou une sélection à la
+suite — masques (`medx fetalbet`), contrôle des piles (`medx svr qc`), reconstruction (`medx svr recon` : résolution,
+s2s ou s2v, régularisation, CPU ou GPU, piles utilisées), segmentation (`medx bounti`), surfaces (`surfx run`),
+maillage et simulation (`gyroxide mesh`, `gyroxide run`). Durée estimée d'après les exécutions précédentes sur la
+machine ; fenêtre « Suivi » : avancement, fin du journal, annulation ; journaux dans `derivatives/guioxide/journaux/`.
+Les onglets se mettent à jour à la fin de chaque étape.
+
+Vues de coupe : pincer ou Cmd + molette pour zoomer, Maj + glisser pour déplacer, Option + glisser pour le contraste,
+molette pour changer de coupe ; boutons « Recadrer » et « Contraste auto » au survol.
 
 Binaires cherchés dans cet ordre : `GUIOXIDE_MEDX`, `GUIOXIDE_SURFX`, `GUIOXIDE_GYROXIDE` ; le `PATH` complété de
 `~/.cargo/bin`, `~/.local/bin`, `/opt/homebrew/bin` ; `target/release/` des clones (`$OXIDE_RACINE`, défaut

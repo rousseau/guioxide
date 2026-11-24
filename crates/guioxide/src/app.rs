@@ -7,6 +7,7 @@ use guioxide_bids::{CheminsSession, Etape, EtatEtape, maintenant_iso};
 use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
 
+use crate::calculs::{self as calc, Calculs};
 use crate::capture::Capture;
 use crate::dialogue::Dialogue;
 use crate::etapes::Visualisation;
@@ -17,6 +18,9 @@ use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Rece
 const CLE_RECENTS: &str = "recents";
 /// Clé du nom de l'opérateur (validation).
 const CLE_OPERATEUR: &str = "operateur";
+/// Clés des réglages des calculs et des durées mesurées des étapes.
+const CLE_REGLAGES: &str = "calculs_reglages";
+const CLE_DUREES: &str = "calculs_durees";
 
 /// Ce qu'on fera du chemin choisi dans la fenêtre ouverte.
 enum Choix {
@@ -60,6 +64,8 @@ pub struct Application {
     dialogue: Option<(Dialogue, Choix)>,
     /// Nouvelle séance à partir de piles NIfTI, et chaîne de calcul lancée.
     import: Import,
+    /// Fenêtre « Calculs » de la session choisie, chaîne lancée.
+    calculs: Calculs,
 }
 
 /// Options de la ligne de commande.
@@ -73,6 +79,8 @@ pub struct Options {
     pub capture: Option<PathBuf>,
     /// Piles NIfTI d'une nouvelle séance.
     pub piles: Vec<PathBuf>,
+    /// Ouvrir la fenêtre « Calculs » de la session.
+    pub calculs: bool,
 }
 
 impl Application {
@@ -83,6 +91,7 @@ impl Application {
             session,
             capture,
             piles,
+            calculs,
         } = options;
         let recents = cc
             .storage
@@ -107,7 +116,13 @@ impl Application {
             message: None,
             dialogue: None,
             import: Import::default(),
+            calculs: Calculs::default(),
         };
+        if let Some(s) = cc.storage {
+            app.calculs.reglages = eframe::get_value(s, CLE_REGLAGES).unwrap_or_default();
+            app.calculs.durees = eframe::get_value(s, CLE_DUREES).unwrap_or_default();
+        }
+        app.calculs.ouverte = calculs;
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
         *app.visualisation.operateur() = operateur.or_else(|| std::env::var("USER").ok()).unwrap_or_default();
@@ -277,13 +292,23 @@ impl Application {
                 }
                 if ui
                     .button("Nouvelle séance…")
-                    .on_hover_text("À partir de piles NIfTI : création du jeu BIDS et lancement des calculs")
+                    .on_hover_text("À partir de piles NIfTI : création d'un jeu BIDS, vérification des piles")
                     .clicked()
                 {
                     self.import.ouvrir();
                 }
-                if self.import.chaine.is_some() && !self.import.suivi && ui.button("Calculs").clicked() {
-                    self.import.suivi = true;
+                if self.calculs.chaine.is_some() && !self.calculs.suivi && ui.button("Suivi").clicked() {
+                    self.calculs.suivi = true;
+                }
+                let seance = self.selection.is_some() && self.ouvert.is_some();
+                let calculs = egui::Button::new(RichText::new("Calculs").strong()).fill(theme::ACCENT_DOUX);
+                if ui
+                    .add_enabled(seance, calculs)
+                    .on_hover_text("Lancer les étapes de la chaîne sur cette session")
+                    .on_disabled_hover_text("choisir une session")
+                    .clicked()
+                {
+                    self.calculs.ouverte = !self.calculs.ouverte;
                 }
                 let pastille = match self.sortie {
                     Sortie::Etude => "Sortie : étude",
@@ -330,7 +355,7 @@ impl Application {
                 ui.spinner();
                 ui.label(RichText::new(&chargement.description).color(theme::TEXTE_SECONDAIRE));
             }
-            if self.import.en_cours() {
+            if self.calculs.en_cours() {
                 ui.separator();
                 ui.spinner();
                 ui.label(RichText::new("calculs en cours").color(theme::TEXTE_SECONDAIRE));
@@ -424,6 +449,28 @@ impl Application {
         self.gabarit_vide(ui, etape);
     }
 
+    /// Fenêtres « Calculs » (session choisie) et « Suivi ».
+    fn fenetre_calculs(&mut self, ctx: &egui::Context) {
+        let choisie = self
+            .ouvert
+            .as_ref()
+            .zip(self.selection)
+            .and_then(|(o, i)| Some((o, o.lignes.get(i)?)));
+        let Some((ouvert, ligne)) = choisie else {
+            self.calculs.afficher(ctx, None);
+            return;
+        };
+        let sortie = match &self.sortie {
+            Sortie::Etude => None,
+            Sortie::Libre(p) => Some(p.as_path()),
+        };
+        let seance = calc::seance(&ouvert.jeu, ligne.sujet, ligne.session, sortie);
+        let sujet = &ouvert.jeu.sujets[ligne.sujet];
+        let session = &sujet.sessions[ligne.session];
+        let chemins = CheminsSession::new(&self.sortie.derivees(&ouvert.jeu), sujet, session);
+        self.calculs.afficher(ctx, Some((&seance, session, &chemins)));
+    }
+
     /// Gabarit des onglets 1 à 4 : données de l'étape à gauche, visualiseur au centre, qualité à droite.
     fn gabarit_vide(&self, ui: &mut Ui, etape: Etape) {
         egui::Panel::left(("donnees", etape.numero()))
@@ -489,8 +536,9 @@ impl eframe::App for Application {
             self.onglet_initial = Some(Etape::Examen);
             self.ouvrir(&ctx, racine, Sortie::Etude);
         }
+        self.fenetre_calculs(&ctx);
         // Une étape de calcul terminée : états du tableau et vues relus.
-        if self.chargement.is_none() && self.import.chaine.as_ref().is_some_and(|c| c.a_relire()) {
+        if self.chargement.is_none() && self.calculs.a_relire() {
             if let Some(ouvert) = &self.ouvert {
                 self.chargement = Some(Chargement::recalculer(&ctx, ouvert.jeu.clone(), self.sortie.clone()));
             }
@@ -500,6 +548,8 @@ impl eframe::App for Application {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, CLE_REGLAGES, &self.calculs.reglages);
+        eframe::set_value(storage, CLE_DUREES, &self.calculs.durees);
         eframe::set_value(storage, CLE_RECENTS, &self.recents);
         eframe::set_value(storage, CLE_OPERATEUR, self.visualisation.operateur());
     }
