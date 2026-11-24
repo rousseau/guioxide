@@ -7,7 +7,9 @@ use egui_plot::{Bar, BarChart, Plot, VLine};
 use guioxide_bids::{CheminsSession, Etape, Session};
 use guioxide_data::QualiteCoupe;
 use guioxide_geom::{Orientation, PointMonde, Volume};
-use guioxide_view::coupe::{Couche, Rendu, TypeVue, VueCoupe, boite_du_masque, vignette, vignette_cadree};
+use guioxide_view::coupe::{
+    Couche, Rendu, Superposition, TypeVue, VueCoupe, boite_du_masque, vignette, vignette_cadree,
+};
 use guioxide_view::theme;
 
 use crate::etapes::{
@@ -47,7 +49,8 @@ pub struct Examen {
     mode: Mode,
     vue: Option<VueCoupe>,
     fenetre: Option<(f32, f32)>,
-    masque_visible: bool,
+    /// Contour du masque fetalbet sur la pile (touche `O`).
+    superposition: Superposition,
     /// Seuil du score par coupe : en dessous, la coupe est signalée.
     seuil: f64,
     /// Qualité affichée, si l'utilisateur en a choisi une ; sinon [`DonneesSession::source_par_defaut`].
@@ -68,7 +71,7 @@ impl Default for Examen {
             },
             vue: None,
             fenetre: None,
-            masque_visible: true,
+            superposition: Superposition::default(),
             seuil: 0.5,
             source: None,
             vignettes: None,
@@ -170,6 +173,7 @@ impl Examen {
         let source = self.source_effective(donnees);
         let qualite = source.map_or_else(Vec::new, |s| donnees.qualite_pile(s, &pile.nom));
 
+        self.superposition.raccourcis(ui.ctx());
         let mut couches = Vec::new();
         if let Some(v) = image.pret() {
             couches.push(Couche::image(v.volume.clone()));
@@ -207,7 +211,7 @@ impl Examen {
             couches.push(Couche {
                 volume: v.volume.clone(),
                 rendu: Rendu::Contour { couleur: CONTOUR },
-                visible: self.masque_visible,
+                visible: self.superposition.visible,
             });
         }
 
@@ -228,7 +232,8 @@ impl Examen {
                     self.synthese(ui, donnees, session, &qualite, source);
                     ui.add_space(8.0);
                     if masque.pret().is_some() {
-                        ui.checkbox(&mut self.masque_visible, "Contour du masque fetalbet");
+                        ui.checkbox(&mut self.superposition.visible, "Contour du masque fetalbet")
+                            .on_hover_text("touche O");
                     }
                     ui.add_space(8.0);
                     panneau_curseur(ui, curseur, &[("pile", image.pret()), ("masque", masque.pret())]);
@@ -502,9 +507,13 @@ impl Examen {
     fn curseur_de_coupe(&mut self, ui: &mut Ui, volume: &Arc<Volume>, curseur: &mut PointMonde) {
         let nz = volume.dims()[2];
         let ijk = volume.vers_voxel(curseur.0);
-        let mut k = (ijk[2].round().max(0.0) as usize).min(nz - 1);
-        if ui.add(egui::Slider::new(&mut k, 0..=nz - 1).text("coupe")).changed() {
-            aller_a_la_coupe(volume, k, curseur);
+        // Numérotée à partir de 1, comme dans l'annotation de la vue.
+        let mut k = (ijk[2].round().max(0.0) as usize).min(nz - 1) + 1;
+        if ui
+            .add(egui::Slider::new(&mut k, 1..=nz).text(format!("/ {nz} coupes")))
+            .changed()
+        {
+            aller_a_la_coupe(volume, k - 1, curseur);
         }
     }
 

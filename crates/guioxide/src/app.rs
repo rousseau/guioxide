@@ -7,7 +7,7 @@ use guioxide_bids::{CheminsSession, Etape, EtatEtape, maintenant_iso};
 use guioxide_geom::PointMonde;
 use guioxide_view::{pastille_etat, polices, theme};
 
-use crate::calculs::{self as calc, Calculs};
+use crate::calculs::{self as calc, Calculs, Contexte};
 use crate::capture::Capture;
 use crate::dialogue::Dialogue;
 use crate::etapes::Visualisation;
@@ -64,7 +64,7 @@ pub struct Application {
     dialogue: Option<(Dialogue, Choix)>,
     /// Nouvelle séance à partir de piles NIfTI, et chaîne de calcul lancée.
     import: Import,
-    /// Fenêtre « Calculs » de la session choisie, chaîne lancée.
+    /// Calculs de la session choisie (barre d'étapes), chaîne lancée, journal.
     calculs: Calculs,
 }
 
@@ -79,7 +79,7 @@ pub struct Options {
     pub capture: Option<PathBuf>,
     /// Piles NIfTI d'une nouvelle séance.
     pub piles: Vec<PathBuf>,
-    /// Ouvrir la fenêtre « Calculs » de la session.
+    /// Ouvrir le journal des calculs.
     pub calculs: bool,
 }
 
@@ -122,7 +122,7 @@ impl Application {
             app.calculs.reglages = eframe::get_value(s, CLE_REGLAGES).unwrap_or_default();
             app.calculs.durees = eframe::get_value(s, CLE_DUREES).unwrap_or_default();
         }
-        app.calculs.ouverte = calculs;
+        app.calculs.journal = calculs;
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
         *app.visualisation.operateur() = operateur.or_else(|| std::env::var("USER").ok()).unwrap_or_default();
@@ -297,19 +297,6 @@ impl Application {
                 {
                     self.import.ouvrir();
                 }
-                if self.calculs.chaine.is_some() && !self.calculs.suivi && ui.button("Suivi").clicked() {
-                    self.calculs.suivi = true;
-                }
-                let seance = self.selection.is_some() && self.ouvert.is_some();
-                let calculs = egui::Button::new(RichText::new("Calculs").strong()).fill(theme::ACCENT_DOUX);
-                if ui
-                    .add_enabled(seance, calculs)
-                    .on_hover_text("Lancer les étapes de la chaîne sur cette session")
-                    .on_disabled_hover_text("choisir une session")
-                    .clicked()
-                {
-                    self.calculs.ouverte = !self.calculs.ouverte;
-                }
                 let pastille = match self.sortie {
                     Sortie::Etude => "Sortie : étude",
                     Sortie::Libre(_) => "Sortie : test",
@@ -325,19 +312,53 @@ impl Application {
         });
     }
 
-    fn barre_onglets(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.onglet, Onglet::Ouverture, "Ouverture");
-            for etape in Etape::TOUTES {
-                ui.separator();
-                pastille_etat(ui, self.etat(etape).unwrap_or(&EtatEtape::NonFaite));
-                ui.selectable_value(&mut self.onglet, Onglet::Etape(etape), etape.to_string())
-                    .on_hover_text(format!("{} · touche {}", etape.outil(), etape.numero()));
+    /// Barre d'étapes : sessions, puis les quatre étapes avec leurs calculs (état, avancement, menu pour les lancer) ;
+    /// à droite, réglages et « Lancer la suite » (ou « Arrêter »).
+    fn barre_etapes(&mut self, ui: &mut Ui) {
+        let etats: Vec<EtatEtape> = Etape::TOUTES
+            .iter()
+            .map(|e| self.etat(*e).cloned().unwrap_or(EtatEtape::NonFaite))
+            .collect();
+        let choisie = self
+            .ouvert
+            .as_ref()
+            .zip(self.selection)
+            .and_then(|(o, i)| Some((o, o.lignes.get(i)?)));
+        let prepare = choisie.map(|(ouvert, ligne)| {
+            let sortie = match &self.sortie {
+                Sortie::Etude => None,
+                Sortie::Libre(p) => Some(p.as_path()),
+            };
+            let seance = calc::seance(&ouvert.jeu, ligne.sujet, ligne.session, sortie);
+            let sujet = &ouvert.jeu.sujets[ligne.sujet];
+            let session = &sujet.sessions[ligne.session];
+            let chemins = CheminsSession::new(&self.sortie.derivees(&ouvert.jeu), sujet, session);
+            (seance, session, chemins)
+        });
+        let contexte = prepare.as_ref().map(|(seance, session, chemins)| Contexte {
+            seance,
+            session,
+            chemins,
+        });
+        // Commandes à droite d'abord (elles gardent leur place), étapes dans le reste, qui défile si la fenêtre est
+        // étroite.
+        let hauteur = ui.spacing().interact_size.y + 8.0;
+        let taille = egui::vec2(ui.available_width(), hauteur);
+        ui.allocate_ui_with_layout(taille, Layout::right_to_left(Align::Center), |ui| {
+            if let Some(cx) = &contexte {
+                self.calculs.commandes(ui, cx);
             }
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                egui::ScrollArea::horizontal()
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| etapes(&mut self.onglet, &mut self.calculs, ui, &etats, contexte.as_ref()));
+                    });
+            });
         });
     }
 
-    fn barre_pied(&self, ui: &mut Ui) {
+    fn barre_pied(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let outil = match self.onglet {
                 Onglet::Ouverture => concat!("guioxide ", env!("CARGO_PKG_VERSION")),
@@ -355,11 +376,7 @@ impl Application {
                 ui.spinner();
                 ui.label(RichText::new(&chargement.description).color(theme::TEXTE_SECONDAIRE));
             }
-            if self.calculs.en_cours() {
-                ui.separator();
-                ui.spinner();
-                ui.label(RichText::new("calculs en cours").color(theme::TEXTE_SECONDAIRE));
-            }
+            self.calculs.pied(ui);
             if let Some(m) = &self.message {
                 ui.separator();
                 ui.label(RichText::new(m).color(theme::TEXTE_SECONDAIRE));
@@ -449,28 +466,6 @@ impl Application {
         self.gabarit_vide(ui, etape);
     }
 
-    /// Fenêtres « Calculs » (session choisie) et « Suivi ».
-    fn fenetre_calculs(&mut self, ctx: &egui::Context) {
-        let choisie = self
-            .ouvert
-            .as_ref()
-            .zip(self.selection)
-            .and_then(|(o, i)| Some((o, o.lignes.get(i)?)));
-        let Some((ouvert, ligne)) = choisie else {
-            self.calculs.afficher(ctx, None);
-            return;
-        };
-        let sortie = match &self.sortie {
-            Sortie::Etude => None,
-            Sortie::Libre(p) => Some(p.as_path()),
-        };
-        let seance = calc::seance(&ouvert.jeu, ligne.sujet, ligne.session, sortie);
-        let sujet = &ouvert.jeu.sujets[ligne.sujet];
-        let session = &sujet.sessions[ligne.session];
-        let chemins = CheminsSession::new(&self.sortie.derivees(&ouvert.jeu), sujet, session);
-        self.calculs.afficher(ctx, Some((&seance, session, &chemins)));
-    }
-
     /// Gabarit des onglets 1 à 4 : données de l'étape à gauche, visualiseur au centre, qualité à droite.
     fn gabarit_vide(&self, ui: &mut Ui, etape: Etape) {
         egui::Panel::left(("donnees", etape.numero()))
@@ -512,8 +507,18 @@ impl eframe::App for Application {
             self.en_tete(ui);
             ui.add_space(2.0);
         });
-        egui::Panel::top("onglets").show(ui, |ui| self.barre_onglets(ui));
+        egui::Panel::top("etapes").show(ui, |ui| {
+            ui.add_space(3.0);
+            self.barre_etapes(ui);
+            ui.add_space(3.0);
+        });
         egui::Panel::bottom("pied").show(ui, |ui| self.barre_pied(ui));
+        if self.calculs.journal {
+            egui::Panel::bottom("journal")
+                .resizable(true)
+                .default_size(220.0)
+                .show(ui, |ui| self.calculs.tiroir(ui));
+        }
         let mut actions = Vec::new();
         match self.onglet {
             Onglet::Ouverture => self.ecran_ouverture(ui, &mut actions),
@@ -536,7 +541,7 @@ impl eframe::App for Application {
             self.onglet_initial = Some(Etape::Examen);
             self.ouvrir(&ctx, racine, Sortie::Etude);
         }
-        self.fenetre_calculs(&ctx);
+        self.calculs.actualiser(&ctx);
         // Une étape de calcul terminée : états du tableau et vues relus.
         if self.chargement.is_none() && self.calculs.a_relire() {
             if let Some(ouvert) = &self.ouvert {
@@ -552,5 +557,47 @@ impl eframe::App for Application {
         eframe::set_value(storage, CLE_DUREES, &self.calculs.durees);
         eframe::set_value(storage, CLE_RECENTS, &self.recents);
         eframe::set_value(storage, CLE_OPERATEUR, self.visualisation.operateur());
+    }
+}
+
+/// « Sessions », puis chaque étape (état, nom, pastilles de ses calculs).
+fn etapes(onglet: &mut Onglet, calculs: &mut Calculs, ui: &mut Ui, etats: &[EtatEtape], contexte: Option<&Contexte>) {
+    ui.selectable_value(onglet, Onglet::Ouverture, "Sessions")
+        .on_hover_text("jeu ouvert, choix de la session et de la sortie");
+    for (etape, etat) in Etape::TOUTES.into_iter().zip(etats) {
+        ui.label(RichText::new("›").color(theme::TEXTE_SECONDAIRE));
+        let actif = *onglet == Onglet::Etape(etape);
+        egui::Frame::new()
+            .fill(if actif {
+                theme::ACCENT_DOUX
+            } else {
+                egui::Color32::TRANSPARENT
+            })
+            .stroke(egui::Stroke::new(
+                1.0,
+                if actif { theme::ACCENT } else { theme::BORDURE },
+            ))
+            .corner_radius(10)
+            .inner_margin(egui::Margin::symmetric(8, 3))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    pastille_etat(ui, etat);
+                    let titre = RichText::new(etape.to_string()).strong();
+                    let titre = if actif { titre.color(theme::ACCENT) } else { titre };
+                    if ui
+                        .add(egui::Label::new(titre).sense(egui::Sense::click()))
+                        .on_hover_text(format!("voir les résultats · touche {}", etape.numero()))
+                        .clicked()
+                    {
+                        *onglet = Onglet::Etape(etape);
+                    }
+                    if let Some(cx) = contexte {
+                        for c in calc::calculs_de(etape) {
+                            calculs.pastille(ui, *c, cx);
+                        }
+                    }
+                });
+            });
     }
 }

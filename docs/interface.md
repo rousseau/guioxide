@@ -10,7 +10,7 @@ foi pour la disposition.
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ guioxide  [jeu] / sub-X / ses-Y  [AG SA]   Contrastes: T2w +  │ Sortie │ Ouvrir │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ✓1 Examen   ✓2 Reconstruction   ✓3 Surfaces   ◔4 Simulation                  │
+│ Sessions › 1 Examen ✓masques ○contrôle › 2 Reconstruction ▶SVR 45 % … │ Réglages │ Lancer la suite │
 ├───────────────┬──────────────────────────────────────────┬───────────────────┤
 │ Données de    │ Visualiseur                              │ Qualité /         │
 │ l'étape       │ (barre d'outils + vues)                  │ paramètres /      │
@@ -23,11 +23,16 @@ foi pour la disposition.
 - **En-tête** : fil d'Ariane (jeu, sujet, session), âge gestationnel, sélecteur de contraste,
   pastille « Sortie : étude / test » (rappel permanent du répertoire de sortie ; clic → écran
   d'ouverture), bouton « Ouvrir un jeu BIDS ».
-- **Onglets** : un par étape, avec l'état déduit du contrat (terminé / en cours / non fait /
-  erreur) et le nom de l'outil. Un onglet dont l'étape n'est pas faite reste accessible et
+- **Barre d'étapes** (à la place des onglets et des anciennes fenêtres « Calculs » et « Suivi », voir
+  [conception-visualiseur.md](conception-visualiseur.md)) : « Sessions », puis une étape par écran, avec l'état déduit
+  du contrat et les pastilles de ses calculs (✓ fait, ○ à faire, ▶ avancement et temps restant, ✗ échec). Un clic sur
+  une pastille ouvre son menu : lancer ce calcul, lancer jusqu'ici (ce qui manque avant), voir le journal. À droite,
+  « Réglages » (résolution, mouvement, piles utilisées, hémisphère, pas) et « Lancer la suite » (tout ce qui manque,
+  dans l'ordre), qui devient « Arrêter » pendant un calcul. Un écran dont l'étape n'est pas faite reste accessible et
   affiche ce qui manque.
 - **Barre de pied** : provenance — outil et version (lus dans `dataset_description.json` de
-  la dérivée), chemin des dérivées affichées, tâches en cours.
+  la dérivée), chemin des dérivées affichées, calcul en cours et temps restant ; « Journal » ouvre en tiroir, au bas de
+  la fenêtre, la sortie de l'outil de chaque étape lancée.
 - **Panneaux latéraux** repliables ; sous ~1100 px de large, ils passent en tiroirs.
 
 ## 0 · Ouverture
@@ -101,17 +106,26 @@ foi pour la disposition.
 
 ## Interactions communes
 
+Les mêmes dans toutes les vues de coupe ; le bouton `?` de chaque vue les rappelle.
+
 | Action | Effet |
 |---|---|
-| Molette dans une coupe | coupe suivante / précédente |
-| Ctrl + molette | zoom |
-| Clic | place le curseur monde (toutes les vues suivent) |
-| Clic droit glissé | fenêtrage (niveau / largeur) |
-| Glisser avec le bouton du milieu | déplacer la vue |
-| Double clic | recadrer la vue |
+| Clic, glisser | place le curseur monde (toutes les vues suivent) |
+| Molette, ↑ ↓, PageUp PageDown | coupe suivante / précédente |
+| Pincer, Cmd + molette, `+` `−` | zoom |
+| Maj + glisser, bouton du milieu | déplacer l'image |
+| Option + glisser, bouton droit | contraste (horizontal : largeur, vertical : niveau) |
+| Double-clic, `R` | recadrer la vue |
+| `A` | contraste automatique |
+| `F` | agrandir la vue survolée (vues triplanaires) ou revenir aux trois vues |
+| `O` | montrer ou cacher la superposition (masque, segmentation) |
+| `C` | superposition pleine ou en contour |
 | Glisser en 3D | rotation ; Maj + glisser : translation |
-| `1`…`4` | changer d'onglet |
+| `1`…`4` | changer d'étape |
 | `Ctrl/Cmd + O` | ouvrir un jeu BIDS |
+
+Annotations aux coins de chaque vue : plan en haut à gauche ; valeur sous la souris (et étiquette) et numéro de coupe
+en bas à gauche ; fenêtre (niveau N, largeur L) et zoom en bas à droite.
 
 ## Apparence
 

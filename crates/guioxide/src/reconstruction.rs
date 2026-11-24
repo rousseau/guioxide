@@ -9,15 +9,12 @@ use egui_plot::{Legend, Line, Plot, PlotPoints, Points, VLine};
 use guioxide_bids::{CheminsSession, Etape, EtatEtape, Session};
 use guioxide_data::{PointMouvement, TableEtiquettes, mouvement_par_coupe};
 use guioxide_geom::{PointMonde, Volume};
-use guioxide_view::coupe::{Couche, Rendu, Triplanaire};
+use guioxide_view::coupe::{Couche, Rendu, Superposition, Triplanaire};
 use guioxide_view::{pastille_etat, theme};
 
 use crate::etapes::{
     Base, CONTOUR, DonneesSession, Fichier, Statut, ligne_couche, message_central, nom_court, panneau_curseur,
 };
-
-/// Opacité initiale de la segmentation.
-const OPACITE: f32 = 0.45;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SousEtape {
@@ -56,8 +53,8 @@ pub struct Reconstruction {
     fenetre_pile: Option<(f32, f32)>,
     volume_masque: Option<(usize, f64)>,
     fenetre: Option<(f32, f32)>,
-    segmentation_visible: bool,
-    opacite: f32,
+    /// Masque (2a) ou segmentation (2c) : visible, opacité, plein ou contour.
+    superposition: Superposition,
     etiquettes: Option<Fichier<TableEtiquettes>>,
     /// Volume (cm³) de chaque étiquette, calculé une fois par segmentation lue.
     volumes: Option<(usize, BTreeMap<u32, f64>)>,
@@ -80,8 +77,7 @@ impl Default for Reconstruction {
             fenetre_pile: None,
             volume_masque: None,
             fenetre: None,
-            segmentation_visible: true,
-            opacite: OPACITE,
+            superposition: Superposition::default(),
             etiquettes: None,
             volumes: None,
             pile_mouvement: None,
@@ -157,6 +153,7 @@ impl Reconstruction {
             self.volumes = Some((Arc::as_ptr(&v.volume) as usize, volumes_etiquettes(&v.volume)));
         }
         let mouvement = self.mouvement.get_or_insert_with(|| mouvement_session(donnees));
+        self.superposition.raccourcis(ui.ctx());
 
         // Couches de la sous-étape : pile et contour de son masque (2a), volume reconstruit (2b), volume et
         // étiquettes (2c).
@@ -182,7 +179,7 @@ impl Reconstruction {
                     couches.push(Couche {
                         volume: v.volume.clone(),
                         rendu: Rendu::Contour { couleur: CONTOUR },
-                        visible: true,
+                        visible: self.superposition.visible,
                     });
                 }
             }
@@ -197,11 +194,8 @@ impl Reconstruction {
                 if let (SousEtape::Segmentation, Some(v)) = (self.sous_etape, seg.pret()) {
                     couches.push(Couche {
                         volume: v.volume.clone(),
-                        rendu: Rendu::Etiquettes {
-                            table: table.clone(),
-                            opacite: self.opacite,
-                        },
-                        visible: self.segmentation_visible,
+                        rendu: self.superposition.etiquettes(table.clone()),
+                        visible: self.superposition.visible,
                     });
                 }
             }
@@ -253,14 +247,17 @@ impl Reconstruction {
                         SousEtape::Masques => {
                             ligne_couche(ui, "Pile", "sourcedata", &pile);
                             ligne_couche(ui, "Masque", "medx-fetalbet", &masque);
+                            if masque.pret().is_some() {
+                                ui.checkbox(&mut self.superposition.visible, "Contour du masque")
+                                    .on_hover_text("touche O");
+                            }
                         }
                         SousEtape::Svr => ligne_couche(ui, "Volume reconstruit", "medx-svr", &svr),
                         SousEtape::Segmentation => {
                             ligne_couche(ui, "Volume reconstruit", "medx-svr", &svr);
                             ligne_couche(ui, "Segmentation", "medx-bounti", &seg);
                             if seg.pret().is_some() {
-                                ui.checkbox(&mut self.segmentation_visible, "Afficher la segmentation");
-                                ui.add(egui::Slider::new(&mut self.opacite, 0.0..=1.0).text("opacité"));
+                                self.superposition.ui(ui, "Segmentation");
                             }
                             if let Some(e) = &erreur_etiquettes {
                                 ui.label(RichText::new(format!("⚠ {e}")).color(theme::ERREUR));

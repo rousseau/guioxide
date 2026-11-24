@@ -5,7 +5,7 @@
 //! guioxide <pile.nii.gz>…
 //! ```
 //!
-//! - `--calculs` : ouvre la fenêtre « Calculs » de la session ;
+//! - `--calculs` : ouvre le journal des calculs ;
 //! - des fichiers NIfTI à la place du jeu : fenêtre « Nouvelle séance » ouverte avec ces piles ;
 //! - `--onglet` : ouvre directement une étape (1 Examen … 4 Simulation) ;
 //! - `--session` : choisit la session dont le libellé contient ce texte (`sub-01 / ses-02`), la première sinon ;
