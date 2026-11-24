@@ -111,9 +111,11 @@ Voir `guioxide/docs/developpement.md` :
 ---
 
 Demandes 7 à 10 : premier essai de guioxide sur une séance réelle (5 piles HASTE de 19 coupes, 512 × 512,
-0,74 × 0,74 × 4,6 mm), le 24 novembre 2026 sur le Mac, `medx` du 5 novembre. **À ouvrir.**
+0,74 × 0,74 × 4,6 mm), le 24 novembre 2026 sur le Mac, `medx` du 5 novembre. Ouvertes le même jour : medoxide#20 à #23.
 
 ## 7. Orientation du volume reconstruit avant la segmentation
+
+> **Ouverte** : [medoxide#20](https://github.com/rousseau/medoxide/issues/20).
 
 Constat : `medx svr recon` garde l'orientation des piles (repère de l'appareil) ; le cerveau fœtal y est tourné de
 façon quelconque (ici d'environ 90° : la vue coronale du volume montre une coupe sagittale du cerveau). La chaîne
@@ -130,6 +132,8 @@ Demande, au choix :
 
 ## 8. Avancement et parallélisme de la SVR coupe-coupe
 
+> **Ouverte** : [medoxide#21](https://github.com/rousseau/medoxide/issues/21).
+
 Constat : `medx svr recon --motion s2s --device cpu` sur 95 coupes : 781 s, un seul cœur occupé la plupart du temps
 (mise à jour `gauss-seidel`, `s2s_block_parallel_gradient: false`), et rien dans la sortie standard entre la ligne
 de départ et la fin : l'utilisateur ne sait pas où en est le calcul. guioxide affiche une estimation tirée des
@@ -143,6 +147,8 @@ Demande :
 
 ## 9. Exclure des coupes à la main
 
+> **Ouverte** : [medoxide#22](https://github.com/rousseau/medoxide/issues/22).
+
 Constat : l'opérateur voit dans l'examen des coupes à écarter (coupes sombres, coupe 14 de la première pile ici,
 utilisée par le SVR) ; `--input` (avec `--bids`) ne permet d'écarter que des piles entières.
 
@@ -151,6 +157,8 @@ Demande : une option `--exclude <fichier.tsv>` (colonnes `stack slice`, ou le `d
 `desc-svr_slicequality.tsv`. guioxide écrira ce fichier dans `derivatives/guioxide/` depuis la mosaïque.
 
 ## 10. Coupes « hors masque » au bord d'une pile
+
+> **Ouverte** : [medoxide#23](https://github.com/rousseau/medoxide/issues/23).
 
 Constat : pile coronale propre, 5 coupes sur 19 exclues `hors_masque` (0, 1, 16, 17, 18). Si le masque de fetalbet
 est vide sur des coupes qui montrent encore le cerveau, la reconstruction perd des données. À vérifier sur cette
