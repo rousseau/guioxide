@@ -372,6 +372,11 @@ impl Visualisation {
         }
     }
 
+    /// Relit les fichiers de la session à la prochaine image (une étape de calcul vient d'en écrire).
+    pub fn relire(&mut self) {
+        self.session = None;
+    }
+
     /// Vrai si une lecture était en cours depuis le dernier appel ; remet l'indicateur à zéro.
     pub fn occupe(&mut self) -> bool {
         std::mem::take(&mut self.base.occupe)

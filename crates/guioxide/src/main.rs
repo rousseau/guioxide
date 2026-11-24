@@ -2,8 +2,10 @@
 //!
 //! ```text
 //! guioxide [chemin du jeu BIDS] [--onglet 1-4] [--session <texte>] [--capture <fichier.png>]
+//! guioxide <pile.nii.gz>…
 //! ```
 //!
+//! - des fichiers NIfTI à la place du jeu : fenêtre « Nouvelle séance » ouverte avec ces piles ;
 //! - `--onglet` : ouvre directement une étape (1 Examen … 4 Simulation) ;
 //! - `--session` : choisit la session dont le libellé contient ce texte (`sub-01 / ses-02`), la première sinon ;
 //! - `--capture` : enregistre la fenêtre en PNG une fois les données affichées, puis quitte (erreur après 5 min si
@@ -11,9 +13,11 @@
 
 mod app;
 mod capture;
+mod chaine;
 mod dialogue;
 mod etapes;
 mod examen;
+mod import;
 mod ouverture;
 mod reconstruction;
 mod simulation;
@@ -23,7 +27,8 @@ use std::path::PathBuf;
 
 use guioxide_bids::Etape;
 
-const USAGE: &str = "usage : guioxide [chemin] [--onglet 1-4] [--session <texte>] [--capture <fichier.png>]";
+const USAGE: &str = "usage : guioxide [chemin] [--onglet 1-4] [--session <texte>] [--capture <fichier.png>]
+        guioxide <pile.nii.gz>…   (nouvelle séance à partir de ces piles)";
 
 fn options() -> Result<app::Options, String> {
     let mut options = app::Options::default();
@@ -43,6 +48,7 @@ fn options() -> Result<app::Options, String> {
             Some("--capture") => options.capture = Some(PathBuf::from(valeur("--capture")?)),
             Some("-h" | "--help") => return Err(USAGE.to_owned()),
             Some(o) if o.starts_with("--") => return Err(format!("option inconnue : {o}\n{USAGE}")),
+            _ if import::est_nifti(std::path::Path::new(&a)) => options.piles.push(PathBuf::from(a)),
             _ if options.jeu.is_none() => options.jeu = Some(PathBuf::from(a)),
             _ => return Err(format!("un seul jeu à la fois\n{USAGE}")),
         }

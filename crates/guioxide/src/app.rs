@@ -10,6 +10,7 @@ use guioxide_view::{pastille_etat, polices, theme};
 use crate::capture::Capture;
 use crate::dialogue::Dialogue;
 use crate::etapes::Visualisation;
+use crate::import::{self, Demande, Import};
 use crate::ouverture::{self, Action, Chargement, EcranOuverture, JeuOuvert, Recent, Sortie};
 
 /// Clé des jeux récents dans le stockage d'eframe.
@@ -57,6 +58,8 @@ pub struct Application {
     message: Option<String>,
     /// Fenêtre de choix de fichier ouverte (une seule à la fois).
     dialogue: Option<(Dialogue, Choix)>,
+    /// Nouvelle séance à partir de piles NIfTI, et chaîne de calcul lancée.
+    import: Import,
 }
 
 /// Options de la ligne de commande.
@@ -68,6 +71,8 @@ pub struct Options {
     pub session: Option<String>,
     /// Capturer la fenêtre dans ce fichier une fois les données affichées, puis quitter.
     pub capture: Option<PathBuf>,
+    /// Piles NIfTI d'une nouvelle séance.
+    pub piles: Vec<PathBuf>,
 }
 
 impl Application {
@@ -77,6 +82,7 @@ impl Application {
             onglet,
             session,
             capture,
+            piles,
         } = options;
         let recents = cc
             .storage
@@ -100,10 +106,14 @@ impl Application {
             jeu_differe: None,
             message: None,
             dialogue: None,
+            import: Import::default(),
         };
         // Opérateur : celui de la dernière validation, sinon le compte de la session.
         let operateur: Option<String> = cc.storage.and_then(|s| eframe::get_value(s, CLE_OPERATEUR));
         *app.visualisation.operateur() = operateur.or_else(|| std::env::var("USER").ok()).unwrap_or_default();
+        if !piles.is_empty() {
+            app.import.ajouter(piles);
+        }
         if let Some(chemin) = jeu {
             if app.capture.is_some() {
                 app.jeu_differe = Some(chemin);
@@ -182,6 +192,7 @@ impl Application {
         match action {
             Action::Ouvrir(chemin, sortie) => self.ouvrir(ctx, chemin, sortie),
             Action::ChoisirDossier => self.choisir_dossier(ctx),
+            Action::ChoisirPiles => self.import.choisir_piles(ctx),
             Action::ChangerSortie(sortie) => {
                 if let Some(ouvert) = &self.ouvert {
                     self.chargement = Some(Chargement::recalculer(ctx, ouvert.jeu.clone(), sortie.clone()));
@@ -201,9 +212,14 @@ impl Application {
         Some(&ligne.etats[usize::from(etape.numero() - 1)])
     }
 
-    /// `1`…`4` changent d'onglet ; `Ctrl/Cmd + O` ouvre un jeu ; un dossier déposé est ouvert.
+    /// `1`…`4` changent d'onglet ; `Ctrl/Cmd + O` ouvre un jeu ; un dossier déposé est ouvert, des fichiers NIfTI
+    /// déposés vont dans une nouvelle séance.
     fn raccourcis(&mut self, ctx: &egui::Context) {
-        if let Some(chemin) = ouverture::depot(ctx) {
+        let depose = ouverture::depot(ctx);
+        let (nifti, autres): (Vec<PathBuf>, Vec<PathBuf>) = depose.into_iter().partition(|p| import::est_nifti(p));
+        if !nifti.is_empty() {
+            self.import.ajouter(nifti);
+        } else if let Some(chemin) = autres.into_iter().next() {
             self.ouvrir(ctx, chemin, Sortie::Etude);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O))) {
@@ -259,6 +275,16 @@ impl Application {
                 if ui.button("Ouvrir un jeu BIDS").on_hover_text(raccourci).clicked() {
                     self.choisir_dossier(ui.ctx());
                 }
+                if ui
+                    .button("Nouvelle séance…")
+                    .on_hover_text("À partir de piles NIfTI : création du jeu BIDS et lancement des calculs")
+                    .clicked()
+                {
+                    self.import.ouvrir();
+                }
+                if self.import.chaine.is_some() && !self.import.suivi && ui.button("Calculs").clicked() {
+                    self.import.suivi = true;
+                }
                 let pastille = match self.sortie {
                     Sortie::Etude => "Sortie : étude",
                     Sortie::Libre(_) => "Sortie : test",
@@ -303,6 +329,11 @@ impl Application {
                 ui.separator();
                 ui.spinner();
                 ui.label(RichText::new(&chargement.description).color(theme::TEXTE_SECONDAIRE));
+            }
+            if self.import.en_cours() {
+                ui.separator();
+                ui.spinner();
+                ui.label(RichText::new("calculs en cours").color(theme::TEXTE_SECONDAIRE));
             }
             if let Some(m) = &self.message {
                 ui.separator();
@@ -453,6 +484,17 @@ impl eframe::App for Application {
         }
         for action in actions {
             self.executer(&ctx, action);
+        }
+        if let Some(Demande::Ouvrir(racine)) = self.import.afficher(&ctx) {
+            self.onglet_initial = Some(Etape::Examen);
+            self.ouvrir(&ctx, racine, Sortie::Etude);
+        }
+        // Une étape de calcul terminée : états du tableau et vues relus.
+        if self.chargement.is_none() && self.import.chaine.as_ref().is_some_and(|c| c.a_relire()) {
+            if let Some(ouvert) = &self.ouvert {
+                self.chargement = Some(Chargement::recalculer(&ctx, ouvert.jeu.clone(), self.sortie.clone()));
+            }
+            self.visualisation.relire();
         }
         self.suivre_capture(&ctx);
     }
