@@ -32,7 +32,7 @@ de recherche.
    | `O` | montrer ou cacher la superposition (masque, segmentation) |
    | `C` | superposition pleine ou en contour |
 
-   Les gestes ne sont plus écrits en permanence dans la vue : un bouton `?` les rappelle au survol.
+   Les gestes ne sont plus écrits en permanence dans la vue : un bouton `?` les affiche sur la vue, d'un clic.
 2. **Annotations aux coins** (OsiriX) plutôt que panneaux : nom du plan en haut à gauche ; position de la coupe en
    bas à gauche ; fenêtre (niveau, largeur) et zoom en bas à droite ; valeur sous la souris en haut à droite.
 3. **Superposition** (ITK-SNAP, FSLeyes, Freeview) : une opacité, un mode plein ou contour, un raccourci pour la

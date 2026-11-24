@@ -258,10 +258,12 @@ impl EcranOuverture {
         actions: &mut Vec<Action>,
     ) {
         egui::Panel::left("ouverture_jeu")
+            .max_size(480.0)
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| self.panneau_jeu(ui, ouvert));
         egui::Panel::right("ouverture_sortie")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| self.panneau_sortie(ui, &ouvert.jeu, sortie, actions));

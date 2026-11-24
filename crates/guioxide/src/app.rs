@@ -469,6 +469,7 @@ impl Application {
     /// Gabarit des onglets 1 à 4 : données de l'étape à gauche, visualiseur au centre, qualité à droite.
     fn gabarit_vide(&self, ui: &mut Ui, etape: Etape) {
         egui::Panel::left(("donnees", etape.numero()))
+            .max_size(480.0)
             .resizable(true)
             .default_size(260.0)
             .show(ui, |ui| {
@@ -476,6 +477,7 @@ impl Application {
                 ui.label(RichText::new(format!("fichiers {}", etape.outil())).color(theme::TEXTE_SECONDAIRE));
             });
         egui::Panel::right(("qualite", etape.numero()))
+            .max_size(480.0)
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| {

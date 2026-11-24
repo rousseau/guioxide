@@ -238,6 +238,7 @@ impl Reconstruction {
             ui.add_space(2.0);
         });
         egui::Panel::left("reco_couches")
+            .max_size(480.0)
             .resizable(true)
             .default_size(290.0)
             .show(ui, |ui| {
@@ -292,6 +293,7 @@ impl Reconstruction {
                 });
             });
         egui::Panel::right("reco_parametres")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| {
@@ -420,11 +422,13 @@ fn parametres(ui: &mut Ui, fichier: &Fichier<serde_json::Value>) {
                     };
                     for (cle, v) in entrees {
                         ui.label(RichText::new(cle).monospace());
-                        let texte = match v {
+                        let complet = match v {
                             serde_json::Value::String(s) => s.clone(),
                             autre => autre.to_string(),
                         };
-                        ui.label(texte);
+                        // Valeur courte : les chemins réduits à leur nom de fichier, le reste au survol.
+                        ui.add(egui::Label::new(valeur_courte(v)).truncate())
+                            .on_hover_text(complet);
                         ui.end_row();
                     }
                 });
@@ -461,6 +465,27 @@ fn resume_mouvement(ui: &mut Ui, mouvement: &[PointMouvement], donnees: &Donnees
                 );
             }
         }
+    }
+}
+
+/// Valeur d'un paramètre en une ligne : chemins réduits à leur nom de fichier, listes à leurs éléments.
+fn valeur_courte(v: &serde_json::Value) -> String {
+    // Un chemin seul (sans espace) : son nom de fichier ; une ligne de commande reste entière.
+    let nom = |s: &str| match s.contains(char::is_whitespace) {
+        true => s.to_owned(),
+        false => s.rsplit('/').next().unwrap_or(s).to_owned(),
+    };
+    match v {
+        serde_json::Value::String(s) => nom(s),
+        serde_json::Value::Array(a) => a
+            .iter()
+            .map(|x| match x {
+                serde_json::Value::String(s) => nom(s),
+                autre => autre.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        autre => autre.to_string(),
     }
 }
 

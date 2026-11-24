@@ -231,6 +231,7 @@ impl Surfaces {
         }
 
         egui::Panel::left("surfaces_liste")
+            .max_size(480.0)
             .resizable(true)
             .default_size(270.0)
             .show(ui, |ui| {
@@ -276,6 +277,7 @@ impl Surfaces {
                 });
             });
         egui::Panel::right("surfaces_controle")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| {

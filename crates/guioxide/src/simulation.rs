@@ -242,6 +242,7 @@ impl Simulation {
         }
 
         egui::Panel::left("simulation_runs")
+            .max_size(480.0)
             .resizable(true)
             .default_size(280.0)
             .show(ui, |ui| {
@@ -250,6 +251,7 @@ impl Simulation {
         let runs = self.runs.as_ref().unwrap();
         let run = &runs[self.choisi];
         egui::Panel::right("simulation_courbes")
+            .max_size(480.0)
             .resizable(true)
             .default_size(320.0)
             .show(ui, |ui| {

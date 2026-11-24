@@ -160,6 +160,8 @@ pub struct VueCoupe {
     pub agrandie: Option<bool>,
     /// Agrandissement (ou retour à la grille) demandé pendant le dernier affichage.
     pub demande_agrandir: bool,
+    /// Liste des gestes ouverte par le bouton « ? ».
+    aide: bool,
     texture: Option<(TextureHandle, Cle, Rect)>,
     /// Contours des surfaces pour le plan courant : (maillage, plan, segments en coordonnées du plan).
     contours: Vec<(usize, Plan, Vec<Segment>)>,
@@ -175,6 +177,7 @@ impl VueCoupe {
             defilement: 0.0,
             agrandie: None,
             demande_agrandir: false,
+            aide: false,
             texture: None,
             contours: Vec::new(),
         }
@@ -356,6 +359,13 @@ impl VueCoupe {
             bas_droite,
         );
         self.barre_outils(ui, rect, couches, reponse.hovered() || reponse.dragged());
+        if self.aide {
+            if reponse.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.aide = false;
+            } else {
+                aide_gestes(ui, rect);
+            }
+        }
         reponse
     }
 
@@ -374,6 +384,7 @@ impl VueCoupe {
             return;
         }
         let mut x = rect.right() - 6.0;
+        let ouverte = self.aide;
         let mut bouton = |ui: &mut Ui, texte: &str, aide: &str, actif: bool| -> bool {
             let galee = ui
                 .painter()
@@ -418,7 +429,14 @@ impl VueCoupe {
                 self.demande_agrandir = true;
             }
         }
-        bouton(ui, "?", GESTES, false);
+        if bouton(
+            ui,
+            if ouverte { "? ✕" } else { "?" },
+            "gestes et touches de la vue",
+            true,
+        ) {
+            self.aide = !self.aide;
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -562,14 +580,51 @@ fn ancrer(plan: Plan, centre: [f64; 3], curseur: [f64; 3]) -> Plan {
 /// Défilement (points) pour passer d'une coupe à la suivante.
 const SEUIL_MOLETTE: f32 = 20.0;
 
-/// Gestes et touches des vues de coupe (bouton « ? »).
-const GESTES: &str = "clic, glisser : placer le curseur\n\
-molette, ↑ ↓ : coupe suivante, précédente\n\
-pincer, Cmd + molette, + − : zoom\n\
-Maj + glisser : déplacer l'image\n\
-Option + glisser : contraste (horizontal : largeur, vertical : niveau)\n\
-double-clic, R : recadrer · A : contraste automatique\n\
-F : agrandir la vue · O : montrer la superposition · C : pleine ou contour";
+/// Gestes et touches des vues de coupe (bouton « ? ») : (geste, effet).
+const GESTES: [(&str, &str); 10] = [
+    ("clic, glisser", "placer le curseur"),
+    ("molette, ↑ ↓", "coupe suivante, précédente"),
+    ("pincer, Cmd + molette, + −", "zoom"),
+    ("Maj + glisser", "déplacer l'image"),
+    (
+        "Option + glisser",
+        "contraste : horizontal la largeur, vertical le niveau",
+    ),
+    ("double-clic, R", "recadrer"),
+    ("A", "contraste automatique"),
+    ("F", "agrandir la vue, ou revenir aux trois vues"),
+    ("O", "montrer ou cacher la superposition"),
+    ("C", "superposition pleine ou en contour"),
+];
+
+/// Liste des gestes dessinée sur la vue, en haut à gauche, sous le nom du plan.
+fn aide_gestes(ui: &Ui, rect: Rect) {
+    let police = egui::FontId::proportional(12.0);
+    let peintre = ui.painter_at(rect);
+    let lignes: Vec<_> = GESTES
+        .iter()
+        .map(|(geste, effet)| {
+            (
+                peintre.layout_no_wrap((*geste).to_owned(), police.clone(), theme::TEXTE),
+                peintre.layout_no_wrap((*effet).to_owned(), police.clone(), theme::TEXTE_SECONDAIRE),
+            )
+        })
+        .collect();
+    let col = lignes.iter().map(|(g, _)| g.size().x).fold(0.0, f32::max) + 14.0;
+    let largeur = col + lignes.iter().map(|(_, e)| e.size().x).fold(0.0, f32::max);
+    let pas = 18.0;
+    let marge = 10.0;
+    let fond = Rect::from_min_size(
+        rect.left_top() + Vec2::new(8.0, 28.0),
+        Vec2::new(largeur + 2.0 * marge, pas * lignes.len() as f32 + 2.0 * marge - 4.0),
+    );
+    peintre.rect_filled(fond, 6.0, theme::PANNEAU.gamma_multiply(0.94));
+    for (i, (geste, effet)) in lignes.into_iter().enumerate() {
+        let p = fond.left_top() + Vec2::new(marge, marge + i as f32 * pas);
+        peintre.galley(p, geste, theme::TEXTE);
+        peintre.galley(p + Vec2::new(col, 0.0), effet, theme::TEXTE_SECONDAIRE);
+    }
+}
 
 /// Avance le curseur de `d` mm le long de la normale `n`.
 fn deplacer_coupe(curseur: &mut PointMonde, n: [f64; 3], d: f64) {

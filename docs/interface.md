@@ -106,7 +106,7 @@ foi pour la disposition.
 
 ## Interactions communes
 
-Les mêmes dans toutes les vues de coupe ; le bouton `?` de chaque vue les rappelle.
+Les mêmes dans toutes les vues de coupe ; le bouton `?` de chaque vue (en haut à droite, au survol) les affiche sur la vue ; un clic dans la vue ou Échap les referme.
 
 | Action | Effet |
 |---|---|

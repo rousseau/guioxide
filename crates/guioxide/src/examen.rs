@@ -216,6 +216,7 @@ impl Examen {
         }
 
         egui::Panel::left("examen_piles")
+            .max_size(480.0)
             .resizable(true)
             .default_size(330.0)
             .show(ui, |ui| {
@@ -225,6 +226,7 @@ impl Examen {
                 ligne_couche(ui, "Masque", "medx-fetalbet", &masque);
             });
         egui::Panel::right("examen_qualite")
+            .max_size(480.0)
             .resizable(true)
             .default_size(300.0)
             .show(ui, |ui| {
